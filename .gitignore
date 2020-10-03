@@ -1,0 +1,8 @@
+*.swp
+*.o
+*.bin
+__pycache__/
+_docs/
+_old/
+_utils/
+

@@ -3,6 +3,7 @@
   Copyright (c) 2006-2008 Hans-Christoph Steiner.  All rights reserved.
   Copyright (c) 2013 Norbert Truchsess. All rights reserved.
   Copyright (c) 2013-2017 Jeff Hoefs. All rights reserved.
+  Copyright (c) 2020 MFP. All rights reserved.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,7 +16,9 @@
 #ifndef Configurable_Firmata_h
 #define Configurable_Firmata_h
 
-#include "utility/Boards.h"  /* Hardware Abstraction Layer + Wiring/Arduino */
+#include <inttypes.h>
+#include <stdio.h> // for size_t
+#include "../hal/Hal.h"
 
 /* Version numbers for the protocol.  The protocol is still changing, so these
  * version numbers are important.
@@ -126,15 +129,15 @@
 #define ENCODER                 0x09 // same as PIN_MODE_ENCODER
 #define IGNORE                  0x7F // same as PIN_MODE_IGNORE
 
+
 extern "C" {
   // callback function types
-  typedef void (*callbackFunction)(byte, int);
+  typedef void (*callbackFunction)(uint8_t, int);
   typedef void (*systemResetCallbackFunction)(void);
   typedef void (*stringCallbackFunction)(char *);
-  typedef void (*sysexCallbackFunction)(byte command, byte argc, byte *argv);
+  typedef void (*sysexCallbackFunction)(uint8_t command, uint8_t argc, uint8_t *argv);
   typedef void (*delayTaskCallbackFunction)(long delay);
 }
-
 
 // TODO make it a subclass of a generic Serial/Stream base class
 class FirmataClass
@@ -144,67 +147,66 @@ class FirmataClass
     /* Arduino constructors */
     void begin();
     void begin(long);
-    void begin(Stream &s);
+    void begin(SerialStream &s);
     /* querying functions */
     void printVersion(void);
     void blinkVersion(void);
     void printFirmwareVersion(void);
-    //void setFirmwareVersion(byte major, byte minor);  // see macro below
-    void setFirmwareNameAndVersion(const char *name, byte major, byte minor);
+    //void setFirmwareVersion(uint8_t major, uint8_t minor);  // see macro below
+    void setFirmwareNameAndVersion(const char *name, uint8_t major, uint8_t minor);
     void disableBlinkVersion();
     /* serial receive handling */
     int available(void);
     void processInput(void);
     void parse(unsigned char value);
-    boolean isParsingMessage(void);
-    boolean isResetting(void);
+    bool isParsingMessage(void);
+    bool isResetting(void);
     /* serial send handling */
-    void sendAnalog(byte pin, int value);
-    void sendDigital(byte pin, int value); // TODO implement this
-    void sendDigitalPort(byte portNumber, int portData);
+    void sendAnalog(uint8_t pin, int value);
+    void sendDigital(uint8_t pin, int value); // TODO implement this
+    void sendDigitalPort(uint8_t portNumber, int portData);
     void sendString(const char *string);
-    void sendString(byte command, const char *string);
-    void sendSysex(byte command, byte bytec, byte *bytev);
-    void write(byte c);
+    void sendString(uint8_t command, const char *string);
+    void sendSysex(uint8_t command, uint8_t bytec, uint8_t *bytev);
+    void write(uint8_t c);
     /* attach & detach callback functions to messages */
-    void attach(byte command, callbackFunction newFunction);
-    void attach(byte command, systemResetCallbackFunction newFunction);
-    void attach(byte command, stringCallbackFunction newFunction);
-    void attach(byte command, sysexCallbackFunction newFunction);
-    void detach(byte command);
+    void attach(uint8_t command, callbackFunction newFunction);
+    void attach(uint8_t command, systemResetCallbackFunction newFunction);
+    void attach(uint8_t command, stringCallbackFunction newFunction);
+    void attach(uint8_t command, sysexCallbackFunction newFunction);
+    void detach(uint8_t command);
     /* delegate to Scheduler (if any) */
     void attachDelayTask(delayTaskCallbackFunction newFunction);
     void delayTask(long delay);
     /* access pin config */
-    byte getPinMode(byte pin);
-    void setPinMode(byte pin, byte config);
+    uint8_t getPinMode(uint8_t pin);
+    void setPinMode(uint8_t pin, uint8_t config);
     /* access pin state */
-    int getPinState(byte pin);
-    void setPinState(byte pin, int state);
+    int getPinState(uint8_t pin);
+    void setPinState(uint8_t pin, int state);
 
     /* utility methods */
     void sendValueAsTwo7bitBytes(int value);
     void startSysex(void);
     void endSysex(void);
-
   private:
-    Stream *FirmataStream;
+    SerialStream *FirmataStream;
     /* firmware name and version */
-    byte firmwareVersionCount;
-    byte *firmwareVersionVector;
+    uint8_t firmwareVersionCount;
+    uint8_t *firmwareVersionVector;
     /* input message handling */
-    byte waitForData; // this flag says the next serial input will be data
-    byte executeMultiByteCommand; // execute this after getting multi-byte data
-    byte multiByteChannel; // channel data for multiByteCommands
-    byte storedInputData[MAX_DATA_BYTES]; // multi-byte data
+    uint8_t waitForData; // this flag says the next serial input will be data
+    uint8_t executeMultiByteCommand; // execute this after getting multi-byte data
+    uint8_t multiByteChannel; // channel data for multiByteCommands
+    uint8_t storedInputData[MAX_DATA_BYTES]; // multi-byte data
     /* sysex */
-    boolean parsingSysex;
+    bool parsingSysex;
     int sysexBytesRead;
     /* pins configuration */
-    byte pinConfig[TOTAL_PINS];         // configuration of every pin
+    uint8_t pinConfig[TOTAL_PINS];         // configuration of every pin
     int pinState[TOTAL_PINS];           // any value that has been written
 
-    boolean resetting;
+    bool resetting;
 
     /* callback functions */
     callbackFunction currentAnalogCallback;
@@ -218,12 +220,12 @@ class FirmataClass
     sysexCallbackFunction currentSysexCallback;
     delayTaskCallbackFunction delayTaskCallback;
 
-    boolean blinkVersionDisabled;
+    bool blinkVersionDisabled;
 
     /* private methods ------------------------------ */
     void processSysexMessage(void);
     void systemReset(void);
-    void strobeBlinkPin(byte pin, int count, int onInterval, int offInterval);
+    void strobeBlinkPin(uint8_t pin, int count, int onInterval, int offInterval);
 };
 
 extern FirmataClass Firmata;

@@ -3,6 +3,7 @@
   Copyright (c) 2006-2008 Hans-Christoph Steiner.  All rights reserved.
   Copyright (c) 2013 Norbert Truchsess. All rights reserved.
   Copyright (c) 2013-2017 Jeff Hoefs. All rights reserved.
+  Copyright (c) 2020 MFP. All rights reserved.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -17,7 +18,6 @@
 //******************************************************************************
 
 #include "ConfigurableFirmata.h"
-#include "HardwareSerial.h"
 
 extern "C" {
 #include <string.h>
@@ -34,8 +34,8 @@ extern "C" {
  */
 void FirmataClass::sendValueAsTwo7bitBytes(int value)
 {
-  FirmataStream->write(value & B01111111); // LSB
-  FirmataStream->write(value >> 7 & B01111111); // MSB
+  FirmataStream->write(value & 0b01111111); // LSB, to use 0bXXXXXXXX notation enable -std=gnu++17 gcc extensions or similarly on clang
+  FirmataStream->write(value >> 7 & 0b01111111); // MSB, to use 0bXXXXXXXX notation enable -std=gnu++17 gcc extensions or similarly on clang
 }
 
 /**
@@ -104,7 +104,7 @@ void FirmataClass::begin(long speed)
  * transport that implements the Stream interface. Some examples include Ethernet, WiFi
  * and other UARTs on the board (Serial1, Serial2, etc).
  */
-void FirmataClass::begin(Stream &s)
+void FirmataClass::begin(SerialStream &s)
 {
   FirmataStream = &s;
   // do not call blinkVersion() here because some hardware such as the
@@ -160,7 +160,7 @@ void FirmataClass::disableBlinkVersion()
  */
 void FirmataClass::printFirmwareVersion(void)
 {
-  byte i;
+  uint8_t i;
 
   if (firmwareVersionCount) { // make sure that the name has been set before reporting
     startSysex();
@@ -181,7 +181,7 @@ void FirmataClass::printFirmwareVersion(void)
  * @param major The major version number
  * @param minor The minor version number
  */
-void FirmataClass::setFirmwareNameAndVersion(const char *name, byte major, byte minor)
+void FirmataClass::setFirmwareNameAndVersion(const char *name, uint8_t major, uint8_t minor)
 {
   const char *firmwareName;
   const char *extension;
@@ -210,7 +210,7 @@ void FirmataClass::setFirmwareNameAndVersion(const char *name, byte major, byte 
   // in case anyone calls setFirmwareNameAndVersion more than once
   free(firmwareVersionVector);
 
-  firmwareVersionVector = (byte *) malloc(firmwareVersionCount + 1);
+  firmwareVersionVector = (uint8_t *) malloc(firmwareVersionCount + 1);
   firmwareVersionVector[firmwareVersionCount] = 0;
   firmwareVersionVector[0] = major;
   firmwareVersionVector[1] = minor;
@@ -242,9 +242,9 @@ void FirmataClass::processSysexMessage(void)
       break;
     case STRING_DATA:
       if (currentStringCallback) {
-        byte bufferLength = (sysexBytesRead - 1) / 2;
-        byte i = 1;
-        byte j = 0;
+        uint8_t bufferLength = (sysexBytesRead - 1) / 2;
+        uint8_t i = 1;
+        uint8_t j = 0;
         while (j < bufferLength) {
           // The string length will only be at most half the size of the
           // stored input buffer so we can decode the string within the buffer.
@@ -285,7 +285,7 @@ void FirmataClass::processInput(void)
  * Parse data from the input stream.
  * @param inputData A single byte to be added to the parser.
  */
-void FirmataClass::parse(byte inputData)
+void FirmataClass::parse(uint8_t inputData)
 {
   int command;
 
@@ -378,7 +378,7 @@ void FirmataClass::parse(byte inputData)
 /**
  * @return Returns true if the parser is actively parsing data.
  */
-boolean FirmataClass::isParsingMessage(void)
+bool FirmataClass::isParsingMessage(void)
 {
   return (waitForData > 0 || parsingSysex);
 }
@@ -386,7 +386,7 @@ boolean FirmataClass::isParsingMessage(void)
 /**
  * @return Returns true if the SYSTEM_RESET message is being executed
  */
-boolean FirmataClass::isResetting(void)
+bool FirmataClass::isResetting(void)
 {
   return resetting;
 }
@@ -403,7 +403,7 @@ boolean FirmataClass::isResetting(void)
  * @param value The value of the analog pin (0 - 1024 for 10-bit analog, 0 - 4096 for 12-bit, etc).
  * The maximum value is 14-bits (16384).
  */
-void FirmataClass::sendAnalog(byte pin, int value)
+void FirmataClass::sendAnalog(uint8_t pin, int value)
 {
   // pin can only be 0-15, so chop higher bits
   FirmataStream->write(ANALOG_MESSAGE | (pin & 0xF));
@@ -416,7 +416,7 @@ void FirmataClass::sendAnalog(byte pin, int value)
  * @param pin The digital pin to send the value of.
  * @param value The value of the pin.
  */
-void FirmataClass::sendDigital(byte pin, int value)
+void FirmataClass::sendDigital(uint8_t pin, int value)
 {
   /* TODO add single pin digital messages to the protocol, this needs to
    * track the last digital data sent so that it can be sure to change just
@@ -446,10 +446,10 @@ void FirmataClass::sendDigital(byte pin, int value)
  * of the Arduino digital pin numbering scheme. Port 0 = pins D0 - D7, port 1 = pins D8 - D15, etc.
  * @param portData The value of the port. The value of each pin in the port is represented by a bit.
  */
-void FirmataClass::sendDigitalPort(byte portNumber, int portData)
+void FirmataClass::sendDigitalPort(uint8_t portNumber, int portData)
 {
   FirmataStream->write(DIGITAL_MESSAGE | (portNumber & 0xF));
-  FirmataStream->write((byte)portData % 128); // Tx bits 0-6
+  FirmataStream->write((uint8_t)portData % 128); // Tx bits 0-6
   FirmataStream->write(portData >> 7);  // Tx bits 7-13
 }
 
@@ -460,9 +460,9 @@ void FirmataClass::sendDigitalPort(byte portNumber, int portData)
  * @param bytec The number of data bytes in the message (excludes start, command and end bytes).
  * @param bytev A pointer to the array of data bytes to send in the message.
  */
-void FirmataClass::sendSysex(byte command, byte bytec, byte *bytev)
+void FirmataClass::sendSysex(uint8_t command, uint8_t bytec, uint8_t *bytev)
 {
-  byte i;
+  uint8_t i;
   startSysex();
   FirmataStream->write(command);
   for (i = 0; i < bytec; i++) {
@@ -476,9 +476,9 @@ void FirmataClass::sendSysex(byte command, byte bytec, byte *bytev)
  * @param command Must be STRING_DATA
  * @param string A pointer to the char string
  */
-void FirmataClass::sendString(byte command, const char *string)
+void FirmataClass::sendString(uint8_t command, const char *string)
 {
-  sendSysex(command, strlen(string), (byte *)string);
+  sendSysex(command, strlen(string), (uint8_t *)string);
 }
 
 /**
@@ -495,7 +495,7 @@ void FirmataClass::sendString(const char *string)
  * Write a single byte to the output stream.
  * @param c The byte to be written.
  */
-void FirmataClass::write(byte c)
+void FirmataClass::write(uint8_t c)
 {
   FirmataStream->write(c);
 }
@@ -507,7 +507,7 @@ void FirmataClass::write(byte c)
  * @param command The ID of the command to attach a callback function to.
  * @param newFunction A reference to the callback function to attach.
  */
-void FirmataClass::attach(byte command, callbackFunction newFunction)
+void FirmataClass::attach(uint8_t command, callbackFunction newFunction)
 {
   switch (command) {
     case ANALOG_MESSAGE: currentAnalogCallback = newFunction; break;
@@ -524,7 +524,7 @@ void FirmataClass::attach(byte command, callbackFunction newFunction)
  * @param command Must be set to SYSTEM_RESET or it will be ignored.
  * @param newFunction A reference to the system reset callback function to attach.
  */
-void FirmataClass::attach(byte command, systemResetCallbackFunction newFunction)
+void FirmataClass::attach(uint8_t command, systemResetCallbackFunction newFunction)
 {
   switch (command) {
     case SYSTEM_RESET: currentSystemResetCallback = newFunction; break;
@@ -536,7 +536,7 @@ void FirmataClass::attach(byte command, systemResetCallbackFunction newFunction)
  * @param command Must be set to STRING_DATA or it will be ignored.
  * @param newFunction A reference to the string callback function to attach.
  */
-void FirmataClass::attach(byte command, stringCallbackFunction newFunction)
+void FirmataClass::attach(uint8_t command, stringCallbackFunction newFunction)
 {
   switch (command) {
     case STRING_DATA: currentStringCallback = newFunction; break;
@@ -548,7 +548,7 @@ void FirmataClass::attach(byte command, stringCallbackFunction newFunction)
  * @param command The ID of the command to attach a callback function to.
  * @param newFunction A reference to the sysex callback function to attach.
  */
-void FirmataClass::attach(byte command, sysexCallbackFunction newFunction)
+void FirmataClass::attach(uint8_t command, sysexCallbackFunction newFunction)
 {
   currentSysexCallback = newFunction;
 }
@@ -558,7 +558,7 @@ void FirmataClass::attach(byte command, sysexCallbackFunction newFunction)
  * ANALOG_MESSAGE, DIGITAL_MESSAGE, etc).
  * @param command The ID of the command to detatch the callback function from.
  */
-void FirmataClass::detach(byte command)
+void FirmataClass::detach(uint8_t command)
 {
   switch (command) {
     case SYSTEM_RESET: currentSystemResetCallback = NULL; break;
@@ -596,7 +596,7 @@ void FirmataClass::delayTask(long delay)
  * @param pin The pin to get the configuration of.
  * @return The configuration of the specified pin.
  */
-byte FirmataClass::getPinMode(byte pin)
+uint8_t FirmataClass::getPinMode(uint8_t pin)
 {
   return pinConfig[pin];
 }
@@ -608,7 +608,7 @@ byte FirmataClass::getPinMode(byte pin)
  * @param pin The pin to configure.
  * @param config The configuration value for the specified pin.
  */
-void FirmataClass::setPinMode(byte pin, byte config)
+void FirmataClass::setPinMode(uint8_t pin, uint8_t config)
 {
   if (pinConfig[pin] == PIN_MODE_IGNORE)
     return;
@@ -622,7 +622,7 @@ void FirmataClass::setPinMode(byte pin, byte config)
  * @param pin The pin to get the state of.
  * @return The state of the specified pin.
  */
-int FirmataClass::getPinState(byte pin)
+int FirmataClass::getPinState(uint8_t pin)
 {
   return pinState[pin];
 }
@@ -633,7 +633,7 @@ int FirmataClass::getPinState(byte pin)
  * @param pin The pin to set the state of
  * @param state Set the state of the specified pin
  */
-void FirmataClass::setPinState(byte pin, int state)
+void FirmataClass::setPinState(uint8_t pin, int state)
 {
   pinState[pin] = state;
 }
@@ -644,8 +644,8 @@ void FirmataClass::setPinState(byte pin, int state)
  * this is too complicated for analogReceive, but maybe for Sysex?
  void FirmataClass::attachSysex(sysexFunction newFunction)
  {
- byte i;
- byte tmpCount = analogReceiveFunctionCount;
+ uint8_t i;
+ uint8_t tmpCount = analogReceiveFunctionCount;
  analogReceiveFunction* tmpArray = analogReceiveFunctionArray;
  analogReceiveFunctionCount++;
  analogReceiveFunctionArray = (analogReceiveFunction*) calloc(analogReceiveFunctionCount, sizeof(analogReceiveFunction));
@@ -668,7 +668,7 @@ void FirmataClass::setPinState(byte pin, int state)
 void FirmataClass::systemReset(void)
 {
   resetting = true;
-  byte i;
+  uint8_t i;
 
   waitForData = 0; // this flag says the next serial input will be data
   executeMultiByteCommand = 0; // execute this after getting multi-byte data
@@ -695,14 +695,14 @@ void FirmataClass::systemReset(void)
  * @param onInterval The number of milliseconds for the LED to be ON during each interval.
  * @param offInterval The number of milliseconds for the LED to be OFF during each interval.
  */
-void FirmataClass::strobeBlinkPin(byte pin, int count, int onInterval, int offInterval)
+void FirmataClass::strobeBlinkPin(uint8_t pin, int count, int onInterval, int offInterval)
 {
-  byte i;
+  uint8_t i;
   for (i = 0; i < count; i++) {
     delay(offInterval);
-    digitalWrite(pin, HIGH);
+    digitalWrite(pin, 1);
     delay(onInterval);
-    digitalWrite(pin, LOW);
+    digitalWrite(pin, 0);
   }
 }
 

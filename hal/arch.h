@@ -9,7 +9,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <string.h> //
-#include "../cbuffer.h"
+#include "cbuffer.h"
+
 
 /* BIT MACROS */
 
@@ -136,7 +137,7 @@ commport_t *commports[8];
 
 
 // UART
-// setup device and return its FD
+// setup device and return the FD
 uint8_t uart_enable(commport_t *uart, uint32_t baud);
 // return 1 if the rx buffer is empty
 bool uart_need_rx(commport_t *uart);
