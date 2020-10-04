@@ -1,0 +1,22 @@
+<<<<<<< HEAD
+section_doc:
+- doc/*
+section_firmware:
+- firmware/*
+section_hal:
+- hal/*
+section_host:
+- host/*
+section_protocol:
+=======
+section\:doc:
+- doc/*
+section\:firmware:
+- firmware/*
+section\:hal:
+- hal/*
+section\:host:
+- host/*
+section\:protocol:
+>>>>>>> 22d6748cd46e8f89d6ac55d2b7b51c679d6bfd88
+- protocol/*
