@@ -5,7 +5,6 @@
 //#include <stdio.h> // for size_t
 //#include <stdbool.h> // for bool
 //#include <inttypes.h> // for uint8_t
-#include <hal/board.h>
 #include <Hal.hpp>
 
 // Version numbers for the protocol.
@@ -88,90 +87,90 @@ extern "C" {
 }
 
 class Firmata : public SerialStream {
-  public:
-    Firmata();
-    // SerialStream constructors
-    void begin(void);
-    void begin(long);
-    void begin(SerialStream &s);
-    // querying functions
-    void printVersion(void);
-    void blinkVersion(void);
-    void printFirmwareVersion(void);
-    void setFirmwareVersion(uint8_t major, uint8_t minor);
-    void setFirmwareNameAndVersion(const char *name, uint8_t major, uint8_t minor);
-    void disableBlinkVersion();
-    // serial receive handling
-    int available(void);
-    void processInput(void);
-    void parse(unsigned char value);
-    bool isParsingMessage(void);
-    bool isResetting(void);
-    // serial send handling
-    void sendAnalog(uint8_t pin, int value);
-    void sendDigital(uint8_t pin, int value); // TODO implement this
-    void sendDigitalPort(uint8_t portNumber, int portData);
-    void sendString(const char *string);
-    void sendString(uint8_t command, const char *string);
-    void sendSysex(uint8_t command, uint8_t bytec, uint8_t *bytev);
-    size_t write(uint8_t c);
-    // attach & detach callback functions to messages
-    void attach(uint8_t command, callbackFunction newFunction);
-    void attach(uint8_t command, systemResetCallbackFunction newFunction);
-    void attach(uint8_t command, stringCallbackFunction newFunction);
-    void attach(uint8_t command, sysexCallbackFunction newFunction);
-    void detach(uint8_t command);
-    // delegate to Scheduler (if any)
-    void attachDelayTask(delayTaskCallbackFunction newFunction);
-    void delayTask(long delay);
-    // access pin config
-    uint8_t getPinMode(uint8_t pin);
-    void setPinMode(uint8_t pin, uint8_t config);
-    // access pin state
-    int getPinState(uint8_t pin);
-    void setPinState(uint8_t pin, int state);
-    // utility methods
-    void sendValueAsTwo7bitBytes(int value);
-    void startSysex(void);
-    void endSysex(void);
-  private:
-    Hal *hal;
-    // firmware name and version
-    uint8_t firmwareVersionCount;
-    uint8_t *firmwareVersionVector;
-    // input message handling
-    uint8_t waitForData; // this flag says the next serial input will be data
-    uint8_t executeMultiByteCommand; // execute this after getting multi-byte data
-    uint8_t multiByteChannel; // channel data for multiByteCommands
-    uint8_t storedInputData[MAX_DATA_BYTES]; // multi-byte data
-    // sysex
-    bool parsingSysex;
-    int sysexBytesRead;
-    // pins configuration
-    uint8_t pinConfig[TOTAL_PINS]; // configuration of every pin
-    int pinState[TOTAL_PINS];	// any value that has been written
-    //
-    bool resetting;
+	public:
+		Firmata();
+		// SerialStream constructors
+		void begin(void);
+		void begin(long);
+		void begin(SerialStream &s);
+		// querying functions
+		void printVersion(void);
+		void blinkVersion(void);
+		void disableBlinkVersion();
+		void printFirmwareVersion(void);
+		void setFirmwareVersion(uint8_t major, uint8_t minor);
+		void setFirmwareNameAndVersion(const char *name, uint8_t major, uint8_t minor);
+		// serial receive handling
+		int available(void);
+		void processInput(void);
+		void parse(unsigned char value);
+		bool isParsingMessage(void);
+		bool isResetting(void);
+		// serial send handling
+		void sendAnalog(uint8_t pin, int value);
+		void sendDigital(uint8_t pin, int value); // TODO implement this
+		void sendDigitalPort(uint8_t portNumber, int portData);
+		void sendString(const char *string);
+		void sendString(uint8_t command, const char *string);
+		void sendSysex(uint8_t command, uint8_t bytec, uint8_t *bytev);
+		size_t write(uint8_t c);
+		// attach & detach callback functions to messages
+		void attach(uint8_t command, callbackFunction newFunction);
+		void attach(uint8_t command, systemResetCallbackFunction newFunction);
+		void attach(uint8_t command, stringCallbackFunction newFunction);
+		void attach(uint8_t command, sysexCallbackFunction newFunction);
+		void detach(uint8_t command);
+		// delegate to Scheduler (if any)
+		void attachDelayTask(delayTaskCallbackFunction newFunction);
+		void delayTask(long delay);
+		// access pin config
+		uint8_t getPinMode(uint8_t pin);
+		void setPinMode(uint8_t pin, uint8_t config);
+		// access pin state
+		int getPinState(uint8_t pin);
+		void setPinState(uint8_t pin, int state);
+		// utility methods
+		void sendValueAsTwo7bitBytes(int value);
+		void startSysex(void);
+		void endSysex(void);
+	private:
+		// firmware name and version
+		uint8_t firmwareVersionCount;
+		uint8_t *firmwareVersionVector;
+		// input message handling
+		uint8_t waitForData; // this flag says the next serial input will be data
+		uint8_t executeMultiByteCommand; // execute this after getting multi-byte data
+		uint8_t multiByteChannel; // channel data for multiByteCommands
+		uint8_t storedInputData[MAX_DATA_BYTES]; // multi-byte data
+		// sysex
+		bool parsingSysex;
+		int sysexBytesRead;
+		// pins configuration
+		uint8_t pinConfig[TOTAL_PINS]; // configuration of every pin
+		int pinState[TOTAL_PINS];	// any value that has been written
+		//
+		bool resetting;
 
-    // callback functions
-    callbackFunction currentAnalogCallback;
-    callbackFunction currentDigitalCallback;
-    callbackFunction currentReportAnalogCallback;
-    callbackFunction currentReportDigitalCallback;
-    callbackFunction currentPinModeCallback;
-    callbackFunction currentPinValueCallback;
-    systemResetCallbackFunction currentSystemResetCallback;
-    stringCallbackFunction currentStringCallback;
-    sysexCallbackFunction currentSysexCallback;
-    delayTaskCallbackFunction delayTaskCallback;
+		// callback functions
+		callbackFunction currentAnalogCallback;
+		callbackFunction currentDigitalCallback;
+		callbackFunction currentReportAnalogCallback;
+		callbackFunction currentReportDigitalCallback;
+		callbackFunction currentPinModeCallback;
+		callbackFunction currentPinValueCallback;
+		systemResetCallbackFunction currentSystemResetCallback;
+		stringCallbackFunction currentStringCallback;
+		sysexCallbackFunction currentSysexCallback;
+		delayTaskCallbackFunction delayTaskCallback;
 
-    //
-    void processSysexMessage(void);
-    void systemReset(void);
-    bool blinkVersionDisabled;
-    void strobeBlinkPin(uint8_t pin, int count, int onInterval, int offInterval);
+		//
+		void processSysexMessage(void);
+		void systemReset(void);
+		bool blinkVersionDisabled;
+		void strobeBlinkPin(uint8_t pin, int count, int onInterval, int offInterval);
 };
 
+extern Hal hal;
 extern Firmata firmata;
 
 #endif

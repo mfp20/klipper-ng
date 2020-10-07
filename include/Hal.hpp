@@ -4,29 +4,35 @@
 
 #include <inttypes.h> // for uint8_t
 #include <stdio.h> // for size_t
+#include <hal/arch.h>
+#include <hal/board.h>
+
+// HAL release number TODO: get git hash.
+#define RELEASE_HAL  1
 
 class SerialStream {
 	public:
+		SerialStream(void);
+		SerialStream(commport_t *p);
 		virtual void begin(unsigned long baud); // init port
 		virtual int available(void); // data ready to be read
 		virtual int read(void);
-		virtual size_t write(uint8_t);
-		virtual void end(); // close port
+		virtual size_t write(uint8_t c);
+		virtual void end(void); // close port
+	private:
+		commport_t *port;
 };
 
 class Hal {
 	public:
-		SerialStream *Console; // for text messages and user interactive console
-		SerialStream *CommandConsole; // for binary control messages
-		SerialStream *Peer; // for p2p messages with other MCUs (ex: sync)
-		void addCh(SerialStream *c);
-		void listChs(void);
-	private:
-		SerialStream *All; // all available serial channels
-		uint8_t ch_no;
-};
+		SerialStream *txtConsole; // serial channel for text messages and user interactive console
+		SerialStream *binConsole; // serial channel for binary control messages
+		SerialStream *peer; // serial channel for p2p messages with other MCUs (ex: sync)
 
-extern Hal hal;
+		Hal(void);
+		void init(void);
+		uint16_t run(void);
+};
 
 #endif
 

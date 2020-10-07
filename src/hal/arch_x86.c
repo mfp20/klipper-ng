@@ -1,27 +1,20 @@
 
 #include <hal/arch.h>
+#include <x86intrin.h>  // rdtscp
+#include <stdarg.h> // va_arg
 #include <math.h> // sqrt
 #include <pthread.h> // timer thread
-#include <x86intrin.h>  // rdtscp
 #include <termios.h>
 #include <pty.h> // openpty
+#include <fcntl.h> // fcntl
+#include <sys/ioctl.h> //ioctl
 #include <sys/stat.h> // chmod
 
-/*
-// amount of primes below 'n'
-static int dummyload(int n) {
-	int i,j;
-	int freq=n-1;
-	for (i=2; i<=n; ++i) for (j=sqrt(i);j>1;--j) if (i%j==0) {--freq; break;}
-	return freq;
-}
-*/
-
 // TIME -----------------------------------------------------------------------------------
-volatile uint16_t tnano;
-volatile uint16_t tmicro;
-volatile uint16_t tmilli;
-volatile uint16_t tsecond;
+volatile uint16_t tnano = 0;
+volatile uint16_t tmicro = 0;
+volatile uint16_t tmilli = 0;
+volatile uint16_t tsecond = 0;
 
 static uint64_t ticks() {
 	unsigned bogo;
@@ -81,36 +74,11 @@ static int timer_init() {
 	return 1;
 }
 
-/*
-static double timer_perf(uint8_t print) {
-	pthread_mutex_lock(&timer_lock);
-	double avg = timer_avg;
-	pthread_mutex_unlock(&timer_lock);
-	if (print) {
-		printf("%lf cycles/ns (avg)\n", avg);
-	}
-	return avg;
-}
-*/
-
 static void timer_clean() {
-    pthread_cancel(timer_thread_id);
-    pthread_join(timer_thread_id, NULL);
-    pthread_mutex_destroy(&timer_lock);
+	pthread_cancel(timer_thread_id);
+	pthread_join(timer_thread_id, NULL);
+	pthread_mutex_destroy(&timer_lock);
 }
-
-/*
-static uint64_t nanostamp(uint8_t print) {
-	uint64_t nanostamp;
-	pthread_mutex_lock(&timer_lock);
-	nanostamp = (uint64_t)tsecond*1000000000+(uint64_t)tmilli*1000000+(uint64_t)tmicro*1000+(uint64_t)tnano;
-	pthread_mutex_unlock(&timer_lock);
-	if (print) {
-		printf("%20lu ns\n", nanostamp);
-	}
-	return nanostamp;
-}
-*/
 
 uint16_t nanos(void) {
 	pthread_mutex_lock(&timer_lock);
@@ -140,53 +108,74 @@ uint16_t seconds(void) {
 	return t;
 }
 
-static void time_print() {
-	printf("%3d:%3d:%3d:%3d ", seconds(), millis(), micros(), nanos());
-}
-
 
 // PIN GET/SET -------------------------------------------------------------------------------------------
-
 void pin_mode(uint8_t pin, uint8_t mode) {
-	pin = pin;
-	mode = mode;
 	usleep(1);
 }
 uint8_t pin_read(uint8_t pin) {
-	pin = pin;
 	return rand() % 1;
 }
 void pin_set_low(uint8_t pin) {
-	pin = pin;
 	usleep(1);
 }
 void pin_set_high(uint8_t pin) {
-	pin = pin;
 	usleep(1);
 }
 void pin_toggle(uint8_t pin) {
-	pin = pin;
 	usleep(1);
 }
 void pin_write(uint8_t pin, uint8_t value) {
-	pin = pin;
-	value = value;
 	usleep(1);
 }
 void pin_pullup_enable(uint8_t pin) {
-	pin = pin;
 	usleep(1);
 }
 void pin_open_drain(uint8_t pin) {
-	pin = pin;
 	usleep(1);
+}
+unsigned char pin_port_read(uint8_t port, uint8_t bitmask) {
+	unsigned char out = 0;
+	// TODO
+	//if (port == 0) return (PIND & 0xFC) & bitmask; // ignore Rx/Tx 0/1
+	//if (port == 1) return ((PINB & 0x3F) | ((PINC & 0x03) << 6)) & bitmask;
+	//if (port == 2) return ((PINC & 0x3C) >> 2) & bitmask;
+	return 0;
+	return out;
+}
+unsigned char pin_port_write(uint8_t port, uint8_t value, uint8_t bitmask) {
+	if (port == 0) {
+		//bitmask = bitmask & 0xFC;  // do not touch Tx & Rx pins
+		//uint8_t valD = value & bitmask;
+		//uint8_t maskD = ~bitmask;
+		//cli();
+		//PORTD = (PORTD & maskD) | valD;
+		//sei();
+	} else if (port == 1) {
+		//uint8_t valB = (value & bitmask) & 0x3F;
+		//uint8_t valC = (value & bitmask) >> 6;
+		//uint8_t maskB = ~(bitmask & 0x3F);
+		//uint8_t maskC = ~((bitmask & 0xC0) >> 6);
+		//cli();
+		//PORTB = (PORTB & maskB) | valB;
+		//PORTC = (PORTC & maskC) | valC;
+		//sei();
+	} else if (port == 2) {
+		//bitmask = bitmask & 0x0F;
+		//uint8_t valC = (value & bitmask) << 2;
+		//uint8_t maskC = ~(bitmask << 2);
+		//cli();
+		//PORTC = (PORTC & maskC) | valC;
+		//sei();
+	}
+	return 1;
 }
 
 
 // ADC -----------------------------------------------------------------------------------------------
 volatile uint8_t adc_enable[16];
 volatile uint8_t adc_value[16];
-volatile uint8_t adc_current;
+volatile uint8_t adc_current = 0;
 
 static void pin_input_adc_run(void) {
 	if (adc_enable[adc_current]) {
@@ -204,14 +193,12 @@ static void pin_input_adc_run(void) {
 volatile pin_pulsing_t pulsing;
 
 uint16_t pin_pulse_detect(uint8_t pin) {
-	pin = pin;
 	uint16_t width = rand() % 1000;
 	usleep(width);
 	return width;
 }
 
 void pin_pulse_single(uint8_t pin, uint16_t width) {
-	pin = pin;
 	usleep(width);
 }
 
@@ -236,105 +223,156 @@ volatile pin_frame_t* pin_pulse_multi(uint16_t milli) {
 
 
 // COMMS -----------------------------------------------------------------------------------
-commport_t *commports[8];
+commport_t *ports = NULL;
+uint8_t ports_no = 0;
+commport_t *console = NULL;
 
-// UART0
-static const char *uart0_filename = "/tmp/klipper-pty0";
-uint8_t uart_enable(commport_t *uart, uint32_t baud) {
-	free(uart);
-	baud = baud;
-	// Open pseudo-tty
+commport_t* commport_register(uint8_t type, uint8_t no) {
+	// allocate ports array
+	ports = (commport_t *)realloc(ports, sizeof(commport_t)*COMMPORTS_NO);
+	// assign metods
+	ports[ports_no].type = type;
+	ports[ports_no].no = no;
+	switch (type) {
+		case PORT_TYPE_ONEWIRE:
+			//ports[ports_no].begin = onewire_begin;
+			//ports[ports_no].available = onewire_available;
+			//ports[ports_no].read = onewire_read;
+			//ports[ports_no].write = onewire_write;
+			//ports[ports_no].end = onewire_end;
+			break;
+		case PORT_TYPE_UART:
+			ports[ports_no].fd = 0;
+			ports[ports_no].baud = DEFAULT_BAUD;
+			ports[ports_no].begin = uart_begin;
+			ports[ports_no].available = uart_available;
+			ports[ports_no].read = uart_read;
+			ports[ports_no].write = uart_write;
+			ports[ports_no].end = uart_end;
+			break;
+		case PORT_TYPE_I2C:
+			//ports[ports_no].begin = i2c_begin;
+			//ports[ports_no].available = i2c_available;
+			//ports[ports_no].read = i2c_read;
+			//ports[ports_no].write = i2c_write;
+			//ports[ports_no].end = i2c_end;
+			break;
+		case PORT_TYPE_SPI:
+			//ports[ports_no].begin = spi_begin;
+			//ports[ports_no].available = spi_available;
+			//ports[ports_no].read = spi_read;
+			//ports[ports_no].write = spi_write;
+			//ports[ports_no].end = spi_end;
+			break;
+	}
+	if (ports_no == 0) console = &ports[ports_no];
+	ports_no++;
+	return &ports[ports_no-1];
+}
+
+void logWrite(const char *format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start (args, format);
+	int len = vsprintf (buffer,format, args);
+	write(1, buffer, len); // 1 = stdout
+	va_end (args);
+}
+
+void errWrite(const char *format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start (args, format);
+	int len = vsprintf (buffer,format, args);
+	write(2, buffer, len); // 2 = stderr
+	va_end (args);
+}
+
+void consoleWrite(const char *format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start (args, format);
+	int len = vsprintf (buffer,format, args);
+	write(console->fd, buffer, len);
+	va_end (args);
+}
+
+// UART
+static const char *uart_pty_filename = "/tmp/klipper-ng-pty";
+static uint8_t uart_pty_count = 0;
+int uart_begin(commport_t *uart, uint32_t baud) {
+	// init termios
 	struct termios ti;
 	memset(&ti, 0, sizeof(ti));
+	// open pseudo-tty
 	int mfd, sfd;
 	openpty(&mfd, &sfd, NULL, &ti, NULL);
-	//fcntl(mfd, F_SETFD, FD_CLOEXEC);
-	//fcntl(sfd, F_SETFD, FD_CLOEXEC);
-	// Create symlink to tty
-	unlink(uart0_filename);
+	// set non-blocking
+	int flags = fcntl(mfd, F_GETFL);
+	fcntl(mfd, F_SETFL, flags | O_NONBLOCK);
+	// set close on exec
+	fcntl(mfd, F_SETFD, FD_CLOEXEC);	
+	fcntl(sfd, F_SETFD, FD_CLOEXEC);	
+	// create pty filename
+	char fnid[3];
+	sprintf(fnid, "%d", uart_pty_count);
+	uart_pty_count++;
+	uint8_t len = strlen(uart_pty_filename)+3;
+	char filename[len];
+	strcpy(filename, uart_pty_filename);
+	strcat(filename, fnid);
+	// create symlink to tty
+	unlink(filename);
 	char *tname = ttyname(sfd);
-	if (symlink(tname, uart0_filename)) printf("symlink error");
+	if (symlink(tname, filename)) printf("symlink error");
 	chmod(tname, 0660);
-	printf("PTY ready @ %s\n", uart0_filename);
+	// make sure stderr is non-blocking
+	flags = fcntl(STDERR_FILENO, F_GETFL);
+	fcntl(STDERR_FILENO, F_SETFL, flags | O_NONBLOCK);
+	// register fd&speed in local ports array
+	uart->fd = mfd;
+	uart->baud = baud;
+	//
+	logWrite("PTY ready @ %s\n", filename);
 	return mfd;
 }
 
-bool uart_need_rx(commport_t *uart) {
-	return cbuf_is_empty(&uart->rx_buf);
+bool uart_available(commport_t *uart) {
+	//struct timeval tv;
+	//tv.tv_sec = 0;
+    //tv.tv_usec = 5;
+	//select(NULL, &uart->fd, NULL, NULL, &tv);
+	int count;
+	ioctl(uart->fd, FIONREAD, &count);
+	return (bool)count;
 }
 
-uint8_t uart_rx_byte(commport_t *uart) {
-	return read(uart->fd, &uart->rx_buf.data[uart->rx_buf.tail], 1);
-}
-
-uint8_t uart_rx_all(commport_t *uart, uint16_t timeout) {
-	free(uart);
-	timeout = timeout;
-	//return read(uart->fd, &uart->rx_buf.data[uart->rx_buf.tail], sizeof(uart->rx_buf.data)-uart->rx_buf.tail);
+int uart_read(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout) {
+	read(uart->fd, data, count);
 	return 0;
 }
 
-bool uart_need_tx(commport_t *uart) {
-	return cbuf_is_empty(&uart->tx_buf);
-}
-
-uint8_t uart_tx_byte(commport_t *uart) {
-	free(uart);
-	//return write(uart->fd, &uart->tx_buf.data[uart->tx_buf.tail], 1);
+int uart_write(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout) {
+	write(uart->fd, data, count);
 	return 0;
 }
 
-uint8_t uart_tx_all(commport_t *uart, uint16_t timeout) {
-	timeout = timeout;
-	return write(uart->fd, &uart->tx_buf.data[uart->tx_buf.tail], sizeof(uart->tx_buf.data)-uart->tx_buf.head);
+int uart_end(commport_t *uart) {
+	// TODO close uart->fd
+	uart_pty_count--;
 }
 
-void uart_disable(commport_t *uart) {
-	free(uart);
-}
-
-
-// ARCH -----------------------------------------------------------------------------------
-
-void logger(const char *string) {
-	time_print();
-	printf("%s\n", string);
-}
-
-void arch_init(void) {
-	tnano = 0;
-	tmicro = 0;
-	tmilli = 0;
-	tsecond = 0;
-	//
-	for (uint8_t i = 0;i<8;i++) {
-		pulsing.pin[i] = 0;
-	}
-	pulsing.head = NULL;
-	pulsing.tail = NULL;
-	//
-	for (uint8_t i = 0;i<8;i++) {
-		adc_enable[i] = 0;
-		adc_value[i] = 0;
-	}
-	adc_current = 0;
-	//
+void _arch_init(void) {
 	srand(time(NULL));
 	timer_init();
+	//printf("_arch_init() OK\n");
 }
 
-uint8_t arch_run(uint16_t snow, uint16_t mnow, uint16_t utimeout) {
-	snow = snow;
-	mnow = mnow;
-	utimeout = utimeout;
-	// read adc(s)
+void _arch_run(void) {
 	pin_input_adc_run();
-	//
-	return 0;
 }
 
-uint8_t arch_close(void) {
+void _arch_reset(void) {
 	timer_clean();
-	return 0;
 }
 

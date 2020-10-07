@@ -58,8 +58,8 @@ SRCS_LIB	:= \
 SRCS_FW		:= \
 	src/Firmware.cpp
 SRCS_HOST	:= \
-	$(wildcard src/host/*.c)	\
-	$(wildcard src/host/*.cpp)
+	$(wildcard src/host/chelper/*.c)	\
+	$(wildcard src/host/chelper/*.cpp)
 OBJS_UTIL	:= $(SRCS_UTIL:%.c=$(DIR_OBJ)/%.o)
 OBJS_HAL	:= $(DIR_OBJ)/src/hal/arch.$(BOARD).o $(DIR_OBJ)/src/hal/board.$(BOARD).o $(DIR_OBJ)/src/hal.$(BOARD).o
 OBJS_PROTO	:= $(SRCS_PROTO:%.cpp=$(DIR_OBJ)/%.o)
@@ -68,7 +68,7 @@ OBJS_FW		:= $(SRCS_FW:%.cpp=$(DIR_OBJ)/%.o)
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o) $(SRCS_HOST:%.cpp=$(DIR_OBJ)/%.o)
 
 # flags
-CFLAGS  = -pedantic-errors -Wall -Wextra -Werror $(INCLUDE) -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__
+CFLAGS  = -Wall -Wextra $(INCLUDE) -D__FIRMWARE_ARCH_$(MCU)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__
 CXXFLAGS  = $(CFLAGS) -std=gnu++17
 LDFLAGS = -L$(DIR_BUILD) -L$(DIR_OBJ) -L$(DIR_APP) -lstdc++ -pthread -lutil -lm -lrt
 
@@ -92,8 +92,9 @@ help:
 	@echo "Use BOARD={linux|generic328p|melzi|mksgenl} to build for other boards, example:"
 	@echo "		make BOARD=melzi fw"
 	@echo "to build the firmware for Melzi board."
+	@echo "WARNING: currently Linux simulator is the only supported board."
 
-all: build hal proto lib fw host 
+all: build hal proto lib fw host
 hal: build $(TARGET_HAL)
 proto: build $(TARGET_PROTO)
 lib: build $(TARGET_LIB)
@@ -147,7 +148,7 @@ build:
 	@mkdir -p $(DIR_APP)
 	@mkdir -p $(DIR_OBJ)
 
-debug: CXXFLAGS += -DDEBUG -g
+debug: CXXFLAGS += -pedantic-errors -Werror -DDEBUG -g
 debug: all
 
 release: CXXFLAGS += -O2

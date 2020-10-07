@@ -15,9 +15,9 @@ extern Firmata7BitEnc fEnc;
 extern FirmataScheduler fSched;
 
 extern "C" {
+	void init(void);
+	uint16_t run(uint16_t utimeout);
 	void systemResetCallback(void);
-	void setup(void);
-	void loop(void);
 }
 
 #endif

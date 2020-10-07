@@ -6,7 +6,7 @@
 #include <protocol/FirmataFeature.hpp>
 #include <protocol/Firmata7BitEnc.hpp>
 
-//subcommands
+// subcommands
 #define CREATE_FIRMATA_TASK     0
 #define DELETE_FIRMATA_TASK     1
 #define ADD_TO_FIRMATA_TASK     2
@@ -24,37 +24,37 @@
 void delayTaskCallback(long delay);
 
 struct firmata_task {
-  firmata_task *nextTask;
-  uint8_t id; //only 7bits used -> supports 127 tasks
-  long time_ms;
-  int len;
-  int pos;
-  uint8_t messages[1];
+	firmata_task *nextTask;
+	uint8_t id; //only 7bits used -> supports 127 tasks
+	long time_ms;
+	int len;
+	int pos;
+	uint8_t messages[1];
 };
 
 class FirmataScheduler: public FirmataFeature {
-  public:
-    FirmataScheduler();
-    void handleCapability(uint8_t pin); //empty method
-    bool handlePinMode(uint8_t pin, int mode); //empty method
-    bool handleSysex(uint8_t command, uint8_t argc, uint8_t* argv);
-    void runTasks();
-    void reset();
-    void createTask(uint8_t id, int len);
-    void deleteTask(uint8_t id);
-    void addToTask(uint8_t id, int len, uint8_t *message);
-    void schedule(uint8_t id, long time_ms);
-    void delayTask(long time_ms);
-    void queryAllTasks();
-    void queryTask(uint8_t id);
+	public:
+		FirmataScheduler();
+		void handleCapability(uint8_t pin); //empty method
+		bool handlePinMode(uint8_t pin, int mode); //empty method
+		bool handleSysex(uint8_t command, uint8_t argc, uint8_t* argv);
+		void runTasks();
+		void reset();
+		void createTask(uint8_t id, int len);
+		void deleteTask(uint8_t id);
+		void addToTask(uint8_t id, int len, uint8_t *message);
+		void schedule(uint8_t id, long time_ms);
+		void delayTask(long time_ms);
+		void queryAllTasks();
+		void queryTask(uint8_t id);
 
-  private:
-    firmata_task *tasks;
-    firmata_task *running;
+	private:
+		firmata_task *tasks;
+		firmata_task *running;
 
-    bool execute(firmata_task *task);
-    firmata_task *findTask(uint8_t id);
-    void reportTask(uint8_t id, firmata_task *task, bool error);
+		bool execute(firmata_task *task);
+		firmata_task *findTask(uint8_t id);
+		void reportTask(uint8_t id, firmata_task *task, bool error);
 };
 
 extern Firmata firmata;

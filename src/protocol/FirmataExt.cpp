@@ -46,8 +46,7 @@ bool FirmataExt::handleSysex(uint8_t command, uint8_t argc, uint8_t* argv) {
 					return true;
 				}
 			}
-		break;
-
+			break;
 		case CAPABILITY_QUERY:
 			firmata.write(START_SYSEX);
 			firmata.write(CAPABILITY_RESPONSE);

@@ -1,6 +1,7 @@
 
 #include <utility/cbuffer.h>
 #include <stdlib.h>
+#include <cstdio>
 
 void cbuf_reset(volatile cbuffer_t *buf) {
 	buf->head = 0;
