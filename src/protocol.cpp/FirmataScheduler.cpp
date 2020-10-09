@@ -12,12 +12,9 @@ FirmataScheduler::FirmataScheduler() {
 }
 
 void FirmataScheduler::handleCapability(uint8_t pin) { 
-	pin=pin; // TODO
 }
 
 bool FirmataScheduler::handlePinMode(uint8_t pin, int mode) {
-	pin = pin; // TODO
-	mode = mode;
 	return false;
 }
 

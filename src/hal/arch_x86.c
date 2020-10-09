@@ -365,6 +365,8 @@ int uart_end(commport_t *uart) {
 void _arch_init(void) {
 	srand(time(NULL));
 	timer_init();
+	// init default port (ports[0])
+	commport_register(PORT_TYPE_UART, 0);
 	//printf("_arch_init() OK\n");
 }
 

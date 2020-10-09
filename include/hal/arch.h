@@ -33,7 +33,7 @@ extern "C" {
 
 
 	// TYPEDEFs
-
+	
 	// 1ms pulsing frame
 	// 	- 8 max pulsing pins (each pulse element is a 8 bit value, each bit represent 1 pin value)
 	// 	- 250 max pulses per millisecond (ie: 1 each 4us)
@@ -175,14 +175,10 @@ extern "C" {
 	// init MCU
 	void _arch_init(void);
 	inline void arch_init(void) {
-		// arch specific
-		_arch_init();
-		//
 		vars_reset();
 		commports_reset();
-		// init default port (ports[0])
-		commport_register(PORT_TYPE_UART, 0);
-		uart_begin(&ports[0], DEFAULT_BAUD);
+		// arch specific
+		_arch_init();
 		//printf("arch_init OK\n");
 	}
 
@@ -209,9 +205,9 @@ extern "C" {
 	// set MCU to know state (ie: ready for init)
 	void _arch_reset(void);
 	inline uint8_t arch_reset(void) {
+		_arch_reset();
 		commports_reset();
 		vars_reset();
-		_arch_reset();
 		return 0;
 	}
 

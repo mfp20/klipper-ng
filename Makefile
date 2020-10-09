@@ -52,17 +52,16 @@ SRCS_UTIL	:= \
 SRCS_HAL	:= \
 	src/hal/arch_$(MCU).c src/hal/board_$(BOARD).c
 SRCS_PROTO	:= \
-	$(wildcard src/protocol/*.cpp)
+	$(wildcard src/protocol/*.c)
 SRCS_LIB	:= \
-	src/Libknp.cpp
+	src/libknp.c
 SRCS_FW		:= \
-	src/Firmware.cpp
+	src/firmware.c
 SRCS_HOST	:= \
-	$(wildcard src/host/chelper/*.c)	\
-	$(wildcard src/host/chelper/*.cpp)
+	$(wildcard src/host/chelper/*.c)
 OBJS_UTIL	:= $(SRCS_UTIL:%.c=$(DIR_OBJ)/%.o)
 OBJS_HAL	:= $(DIR_OBJ)/src/hal/arch.$(BOARD).o $(DIR_OBJ)/src/hal/board.$(BOARD).o $(DIR_OBJ)/src/hal.$(BOARD).o
-OBJS_PROTO	:= $(SRCS_PROTO:%.cpp=$(DIR_OBJ)/%.o)
+OBJS_PROTO	:= $(SRCS_PROTO:%.c=$(DIR_OBJ)/%.o)
 OBJS_LIB	:= $(DIR_OBJ)/src/libknp.$(BOARD).o
 OBJS_FW		:= $(SRCS_FW:%.cpp=$(DIR_OBJ)/%.o)
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o) $(SRCS_HOST:%.cpp=$(DIR_OBJ)/%.o)
@@ -109,7 +108,7 @@ $(DIR_OBJ)/src/hal/board.$(BOARD).o: src/hal/board_$(BOARD).c
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -c $< -o $@ $(LDFLAGS)
 
-$(DIR_OBJ)/src/hal.$(BOARD).o: src/Hal.cpp
+$(DIR_OBJ)/src/hal.$(BOARD).o: src/hal.c
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -c $< -o $@ $(LDFLAGS)
 
@@ -131,7 +130,7 @@ $(TARGET_PROTO): $(OBJS_UTIL) $(OBJS_PROTO)
 
 $(TARGET_LIB): $(TARGET_HAL) $(TARGET_PROTO)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c src/Libknp.cpp -o $(DIR_OBJ)/src/libknp.$(BOARD).o $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -c src/libknp.c -o $(DIR_OBJ)/src/libknp.$(BOARD).o $(LDFLAGS)
 	$(AR) rcs $(TARGET_LIB) $(OBJS_UTIL:%.o=%.$(BOARD).o) $(OBJS_HAL) $(OBJS_PROTO:%.o=%.$(BOARD).o) $(OBJS_LIB)
 
 $(TARGET_FW): $(TARGET_LIB)

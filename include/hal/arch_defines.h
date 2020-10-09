@@ -23,6 +23,7 @@
 #define MOSI	7
 #define MISO	8
 #define SCK		9
+#define LED		13
 #define FIRST_ANALOG_PIN		8
 #define TOTAL_ANALOG_PINS       8
 #define TOTAL_PINS              16 // 8 digital + 8 analog
