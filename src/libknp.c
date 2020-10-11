@@ -4,35 +4,7 @@
 task_t *tasks = NULL;
 task_t *running = NULL;
 
-void runTasks(void) {
-	if (tasks) {
-		long now = millis();
-		task_t *current = tasks;
-		task_t *previous = NULL;
-		while (current) {
-			if (current->ms > 0 && current->ms < now) { // TODO handle overflow
-				if (execute(current)) {
-					previous = current;
-					current = current->next;
-				} else {
-					if (previous) {
-						previous->next = current->next;
-						free(current);
-						current = previous->next;
-					} else {
-						tasks = current->next;
-						free(current);
-						current = tasks;
-					}
-				}
-			} else {
-				current = current->next;
-			}
-		}
-	}
-}
-
-bool execute(task_t *task) {
+static bool execute(task_t *task) {
 	long start = task->ms;
 	int pos = task->pos;
 	int len = task->len;
@@ -84,6 +56,34 @@ static void reportTask(uint8_t id, task_t *task, bool error) {
 	}
 	byte = CMD_END_SYSEX;
 	binConsole->write(binConsole, &byte, 1, 0);
+}
+
+void runTasks(void) {
+	if (tasks) {
+		long now = millis();
+		task_t *current = tasks;
+		task_t *previous = NULL;
+		while (current) {
+			if (current->ms > 0 && current->ms < now) { // TODO handle overflow
+				if (execute(current)) {
+					previous = current;
+					current = current->next;
+				} else {
+					if (previous) {
+						previous->next = current->next;
+						free(current);
+						current = previous->next;
+					} else {
+						tasks = current->next;
+						free(current);
+						current = tasks;
+					}
+				}
+			} else {
+				current = current->next;
+			}
+		}
+	}
 }
 
 void cmdReportProtocolVersion(void) {
@@ -315,7 +315,7 @@ void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv) {
 				if (argv[datalen-1] != '\0') {
 					argv[datalen] = '\0';
 				}
-				dispatchString((char *)argv[0]);
+				dispatchString((char *)&argv[0]);
 			}
 			break;
 		case CMD_EID_STEPPER_DATA:
@@ -350,11 +350,6 @@ void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv) {
 							cmdCreateTask(argv[1], argv[2] | argv[3] << 7);
 						}
 						break;
-					case CMD_SUB_SCHED_DELETE:
-						if (argc == 2) {
-							cmdDeleteTask(argv[1]);
-						}
-						break;
 					case CMD_SUB_SCHED_ADD_TO:
 						if (argc > 2) {
 							int len = num7BitOutbytes(argc - 2);
@@ -383,12 +378,17 @@ void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv) {
 							cmdQueryTask(argv[1]);
 						}
 						break;
+					case CMD_SUB_SCHED_DELETE:
+						if (argc == 2) {
+							cmdDeleteTask(argv[1]);
+						}
+						break;
 					case CMD_SUB_SCHED_RESET:
 						cmdSchedulerReset();
 				}
 			}
 			break;
-		case CMD_EID_ANALOG_CONFIG: 
+		case CMD_EID_ANALOG_CONFIG:
 			errWrite("Not Implemented: %d (CMD_EID_ANALOG_CONFIG)", cmd);
 			break;
 		case CMD_EID_NON_REALTIME:

@@ -2,7 +2,9 @@
 #ifndef LIBKNP_H
 #define LIBKNP_H
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 #include <hal.h>
 #include <protocol/firmata.h>
@@ -22,7 +24,6 @@ extern "C" {
 	extern task_t *running;
 
 	void runTasks(void);
-	bool execute(task_t *task);
 
 	void cmdReportProtocolVersion(void);
 	void cmdReportFirmwareVersion(void);
@@ -39,7 +40,10 @@ extern "C" {
 	void dispatchString(char *);
 	void dispatchSimple(uint8_t cmd, uint8_t byte1, uint8_t byte2);
 	void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv);
+
+#ifdef __cplusplus
 }
+#endif
 
 #endif
 

@@ -1,14 +1,16 @@
 
 #include <hal/arch.h>
-#include <x86intrin.h>  // rdtscp
-#include <stdarg.h> // va_arg
-#include <math.h> // sqrt
-#include <pthread.h> // timer thread
-#include <termios.h>
-#include <pty.h> // openpty
-#include <fcntl.h> // fcntl
-#include <sys/ioctl.h> //ioctl
-#include <sys/stat.h> // chmod
+#include <x86intrin.h>	// rdtscp
+#include <stdarg.h>		// va_arg
+#include <unistd.h>		// usleep
+#include <pthread.h>	// timer thread
+#include <termios.h>	// termios
+#include <pty.h>		// openpty
+#include <fcntl.h>		// fcntl
+#include <sys/ioctl.h>	//ioctl
+#include <sys/stat.h>	// chmod
+#include <stdio.h>		// sprintf
+#include <string.h>		// memset, strcopy
 
 // TIME -----------------------------------------------------------------------------------
 volatile uint16_t tnano = 0;
@@ -40,7 +42,7 @@ static pthread_mutex_t timer_lock;
 static uint16_t timer_dummyload_1us = 540;
 static double timer_cdiff=4000, timer_ndiff=1000, timer_avg=4.20;
 static void * _timer_thread(void * data) {
-	int cstart, cend, bogo;
+	int cstart, cend, bogo = 0;
 	uint64_t nstart, nend;
 	while(1) {
 		cstart = ticks();
@@ -229,19 +231,19 @@ commport_t *console = NULL;
 
 commport_t* commport_register(uint8_t type, uint8_t no) {
 	// allocate ports array
-	ports = (commport_t *)realloc(ports, sizeof(commport_t)*COMMPORTS_NO);
+	ports = (commport_t *)realloc(ports, sizeof(commport_t)*COMMPORT_QTY);
 	// assign metods
 	ports[ports_no].type = type;
 	ports[ports_no].no = no;
 	switch (type) {
-		case PORT_TYPE_ONEWIRE:
+		case COMMPORT_TYPE_1WIRE:
 			//ports[ports_no].begin = onewire_begin;
 			//ports[ports_no].available = onewire_available;
 			//ports[ports_no].read = onewire_read;
 			//ports[ports_no].write = onewire_write;
 			//ports[ports_no].end = onewire_end;
 			break;
-		case PORT_TYPE_UART:
+		case COMMPORT_TYPE_UART:
 			ports[ports_no].fd = 0;
 			ports[ports_no].baud = DEFAULT_BAUD;
 			ports[ports_no].begin = uart_begin;
@@ -250,14 +252,14 @@ commport_t* commport_register(uint8_t type, uint8_t no) {
 			ports[ports_no].write = uart_write;
 			ports[ports_no].end = uart_end;
 			break;
-		case PORT_TYPE_I2C:
+		case COMMPORT_TYPE_I2C:
 			//ports[ports_no].begin = i2c_begin;
 			//ports[ports_no].available = i2c_available;
 			//ports[ports_no].read = i2c_read;
 			//ports[ports_no].write = i2c_write;
 			//ports[ports_no].end = i2c_end;
 			break;
-		case PORT_TYPE_SPI:
+		case COMMPORT_TYPE_SPI:
 			//ports[ports_no].begin = spi_begin;
 			//ports[ports_no].available = spi_available;
 			//ports[ports_no].read = spi_read;
@@ -268,6 +270,15 @@ commport_t* commport_register(uint8_t type, uint8_t no) {
 	if (ports_no == 0) console = &ports[ports_no];
 	ports_no++;
 	return &ports[ports_no-1];
+}
+
+void consoleWrite(const char *format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start (args, format);
+	int len = vsprintf (buffer,format, args);
+	write(console->fd, buffer, len);
+	va_end (args);
 }
 
 void logWrite(const char *format, ...) {
@@ -288,14 +299,6 @@ void errWrite(const char *format, ...) {
 	va_end (args);
 }
 
-void consoleWrite(const char *format, ...) {
-	char buffer[256];
-	va_list args;
-	va_start (args, format);
-	int len = vsprintf (buffer,format, args);
-	write(console->fd, buffer, len);
-	va_end (args);
-}
 
 // UART
 static const char *uart_pty_filename = "/tmp/klipper-ng-pty";
@@ -311,8 +314,8 @@ int uart_begin(commport_t *uart, uint32_t baud) {
 	int flags = fcntl(mfd, F_GETFL);
 	fcntl(mfd, F_SETFL, flags | O_NONBLOCK);
 	// set close on exec
-	fcntl(mfd, F_SETFD, FD_CLOEXEC);	
-	fcntl(sfd, F_SETFD, FD_CLOEXEC);	
+	fcntl(mfd, F_SETFD, FD_CLOEXEC);
+	fcntl(sfd, F_SETFD, FD_CLOEXEC);
 	// create pty filename
 	char fnid[3];
 	sprintf(fnid, "%d", uart_pty_count);
@@ -360,13 +363,14 @@ int uart_write(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout)
 int uart_end(commport_t *uart) {
 	// TODO close uart->fd
 	uart_pty_count--;
+	return 0;
 }
 
 void _arch_init(void) {
 	srand(time(NULL));
 	timer_init();
 	// init default port (ports[0])
-	commport_register(PORT_TYPE_UART, 0);
+	commport_register(COMMPORT_TYPE_UART, 0);
 	//printf("_arch_init() OK\n");
 }
 

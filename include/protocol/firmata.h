@@ -1,7 +1,9 @@
 #ifndef PROTOCOL_FIRMATA_H
 #define PROTOCOL_FIRMATA_H
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 #include <stddef.h>
 #include <inttypes.h>
@@ -31,7 +33,7 @@ extern "C" {
 	// 0x01-0x0F reserved for user-defined commands
 #define CMD_EID_RCOUT					0x5C // PROPOSED: bridge to RCSwitch Arduino library
 #define CMD_EID_RCIN					0x5D // PROPOSED: bridge to RCSwitch Arduino library
-#define CMD_EID_DEVICE_QUERY			0x5E // PROPOSED: Generic Device Driver RPC 
+#define CMD_EID_DEVICE_QUERY			0x5E // PROPOSED: Generic Device Driver RPC
 #define CMD_EID_DEVICE_RESPONSE			0x5F // PROPOSED: Generic Device Driver RPC
 #define CMD_EID_SERIAL_MESSAGE			0x60 // communicate with serial devices, including other boards
 #define CMD_EID_ENCODER_DATA			0x61 // reply with encoders current positions
@@ -102,7 +104,9 @@ extern "C" {
 	void encode7bitCompat(uint8_t *data, uint8_t count, uint8_t *result);
 	void decode7bitCompat(uint8_t *data, uint8_t count, uint8_t *result);
 
+#ifdef __cplusplus
 }
+#endif
 
 #endif
 

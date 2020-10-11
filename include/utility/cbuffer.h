@@ -2,7 +2,9 @@
 #ifndef UTILITY_CBUFFER_H
 #define UTILITY_CBUFFER_H
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 #include <inttypes.h> // for uint8_t
 #include <stdbool.h>
@@ -26,7 +28,9 @@ extern "C" {
 	uint8_t cbuf_push(volatile cbuffer_t *buf, uint8_t *data, uint8_t len);
 	uint8_t cbuf_pop(volatile cbuffer_t *buf, uint8_t *data, uint8_t len);
 
+#ifdef __cplusplus
 }
+#endif
 
 #endif
 

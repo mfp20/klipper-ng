@@ -11,9 +11,9 @@
 # make help
 # 
 
-BOARD ?= linux
-ifeq ($(BOARD),linux)
-	MCU=x86
+BOARD ?= genericlinux
+ifeq ($(BOARD),genericlinux)
+	MCU=bogus
 	CROSS_COMPILE=
 endif
 ifeq ($(BOARD),generic328p)
@@ -67,8 +67,8 @@ OBJS_FW		:= $(SRCS_FW:%.cpp=$(DIR_OBJ)/%.o)
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o) $(SRCS_HOST:%.cpp=$(DIR_OBJ)/%.o)
 
 # flags
-CFLAGS  = -Wall -Wextra $(INCLUDE) -D__FIRMWARE_ARCH_$(MCU)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__
-CXXFLAGS  = $(CFLAGS) -std=gnu++17
+CFLAGS  = $(INCLUDE) -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__
+CXXFLAGS = $(CFLAGS) -std=gnu++17
 LDFLAGS = -L$(DIR_BUILD) -L$(DIR_OBJ) -L$(DIR_APP) -lstdc++ -pthread -lutil -lm -lrt
 
 # targets
@@ -102,23 +102,23 @@ host: build $(TARGET_HOST)
 
 $(DIR_OBJ)/src/hal/arch.$(BOARD).o: src/hal/arch_$(MCU).c
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CXX) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
 
 $(DIR_OBJ)/src/hal/board.$(BOARD).o: src/hal/board_$(BOARD).c
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CXX) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
 
 $(DIR_OBJ)/src/hal.$(BOARD).o: src/hal.c
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CXX) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
 
 $(DIR_OBJ)/%.o: %.c
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $(@:%.o=%.$(BOARD).o) $(LDFLAGS)
+	$(CXX) $(CFLAGS) -c $< -o $(@:%.o=%.$(BOARD).o) $(LDFLAGS)
 
 $(DIR_OBJ)/%.o: %.cpp
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $(@:%.o=%.$(BOARD).o) $(LDFLAGS)
+	$(CXX) $(CFLAGS) -c $< -o $(@:%.o=%.$(BOARD).o) $(LDFLAGS)
 
 $(TARGET_HAL): $(OBJS_UTIL) $(OBJS_HAL)
 	@mkdir -p $(@D)
@@ -130,16 +130,16 @@ $(TARGET_PROTO): $(OBJS_UTIL) $(OBJS_PROTO)
 
 $(TARGET_LIB): $(TARGET_HAL) $(TARGET_PROTO)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c src/libknp.c -o $(DIR_OBJ)/src/libknp.$(BOARD).o $(LDFLAGS)
+	$(CXX) $(CFLAGS) -c src/libknp.c -o $(DIR_OBJ)/src/libknp.$(BOARD).o $(LDFLAGS)
 	$(AR) rcs $(TARGET_LIB) $(OBJS_UTIL:%.o=%.$(BOARD).o) $(OBJS_HAL) $(OBJS_PROTO:%.o=%.$(BOARD).o) $(OBJS_LIB)
 
 $(TARGET_FW): $(TARGET_LIB)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(TARGET_FW) $(SRCS_FW) $(LDFLAGS) -l:libknp.linux.a
+	$(CXX) $(CFLAGS) -o $(TARGET_FW) $(SRCS_FW) $(LDFLAGS) -l:libknp.$(BOARD).a
 
 $(TARGET_HOST): $(OBJS_HOST)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(DIR_APP)/$(TARGET_HOST) $^ $(LDFLAGS)
+	$(CXX) $(CFLAGS) -o $(DIR_APP)/$(TARGET_HOST) $^ $(LDFLAGS)
 
 .PHONY: all build clean debug release
 
@@ -147,7 +147,10 @@ build:
 	@mkdir -p $(DIR_APP)
 	@mkdir -p $(DIR_OBJ)
 
-debug: CXXFLAGS += -pedantic-errors -Werror -DDEBUG -g
+compiledb:
+	@$(shell compiledb -n make fw)
+
+debug: CXXFLAGS += -pedantic-errors -Wall -Werror -Wextra -DDEBUG -g
 debug: all
 
 release: CXXFLAGS += -O2

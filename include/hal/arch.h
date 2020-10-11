@@ -2,38 +2,21 @@
 #ifndef HAL_ARCH_H
 #define HAL_ARCH_H
 
-extern "C" {
-
-#include <stddef.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <unistd.h>
-#include <string.h> //
 #include <utility/bitops.h>
 #include <utility/cbuffer.h>
-#include <hal/arch_defines.h>
+#include <hal/defines.h>
 
-	// comm port types
-#define PORT_TYPE_PIN 0
-#define PORT_TYPE_ONEWIRE 1
-#define PORT_TYPE_UART	2
-#define PORT_TYPE_I2C	3
-#define PORT_TYPE_SPI	4
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-	// comm port errors
-#define PORT_ERROR_NO				0 // no error
-#define PORT_ERROR_FRAME			1 // Frame Error (FEn)
-#define PORT_ERROR_DATAOVR			2 // Data OverRun (DORn)
-#define PORT_ERROR_PARITY			3 // Parity Error (UPEn)
-#define PORT_ERROR_BUFOVF			4 // Buffer overflow
-
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <inttypes.h>
 
 	// TYPEDEFs
-	
+
 	// 1ms pulsing frame
 	// 	- 8 max pulsing pins (each pulse element is a 8 bit value, each bit represent 1 pin value)
 	// 	- 250 max pulses per millisecond (ie: 1 each 4us)
@@ -86,8 +69,8 @@ extern "C" {
 
 	// TIME
 	uint16_t nanos(void);
-	uint16_t micros(void); 
-	uint16_t millis(void); 
+	uint16_t micros(void);
+	uint16_t millis(void);
 	uint16_t seconds(void);
 
 	// PINS
@@ -121,7 +104,7 @@ extern "C" {
 	volatile pin_frame_t* pin_pulse_multi(uint16_t milli);
 
 
-	// COMM PORTS	
+	// COMM PORTS
 	// register a new commport_t
 	commport_t* commport_register(uint8_t type, uint8_t no);
 	// setup device and return the FD
@@ -153,13 +136,13 @@ extern "C" {
 		//printf("vars_reset() OK\n");
 	}
 	static inline void commports_reset(void) {
-		if (ports != NULL) 
-		for (int i=0;i<=ports_no;i++) {
-			if (ports[i].fd != 0) {
-				printf("port %d, fd %d", i, ports[i].fd);
-				ports[i].end(&ports[i]);
+		if (ports != NULL)
+			for (int i=0;i<=ports_no;i++) {
+				if (ports[i].fd != 0) {
+					//printf("port %d, fd %d", i, ports[i].fd);
+					ports[i].end(&ports[i]);
+				}
 			}
-		}
 		if (ports != NULL) free(ports);
 		ports = (commport_t *)malloc(sizeof(commport_t));
 		ports_no = 0;
@@ -167,10 +150,10 @@ extern "C" {
 		//printf("commports_reset() OK\n");
 	}
 
-	// stdout&stderr&console
+	// console&stdout&stderr
+	void consoleWrite(const char *format, ...);
 	void logWrite(const char *format, ...);
 	void errWrite(const char *format, ...);
-	void consoleWrite(const char *format, ...);
 
 	// init MCU
 	void _arch_init(void);
@@ -217,7 +200,9 @@ extern "C" {
 		return 0;
 	}
 
+#ifdef __cplusplus
 }
+#endif
 
 #endif
 

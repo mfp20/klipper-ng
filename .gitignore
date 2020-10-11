@@ -6,4 +6,6 @@ __pycache__/
 _docs/
 _old/
 _utils/
+.clangd/
+compile_commands.json
 
