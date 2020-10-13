@@ -18,22 +18,8 @@ inline void board_init(void) {
 
 // tasks to run every loop cycle
 void _board_run(void);
-inline uint16_t board_run(void) {
-	/*
-	// start
-	uint16_t ustart = micros();
+inline void board_run(void) {
 	_board_init();
-	// end
-	uint16_t uend = micros();
-	uint16_t elapsed;
-	if (uend>=ustart) {
-		elapsed = uend-ustart;
-	} else {
-		elapsed = ((999-ustart)+uend);
-	}
-	return elapsed;
-	*/
-	return 0;
 }
 
 void _board_reset(void);

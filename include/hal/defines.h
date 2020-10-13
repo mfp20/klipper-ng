@@ -51,7 +51,7 @@
 // BOARDs
 //
 
-#if defined(__FIRMWARE_BOARD_GENERICLINUX__)
+#if defined(__FIRMWARE_BOARD_SIMULINUX__)
 #define PIN_1WIRE		1
 #define PIN_UART0_RX	2
 #define PIN_UART0_TX	3

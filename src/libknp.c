@@ -1,6 +1,12 @@
 
 #include <libknp.h>
 
+uint16_t mstart = 0;
+uint16_t ustart = 0;
+uint16_t uelapsed = 1000;
+uint16_t jitter = 0;
+uint8_t txtData, binData, peerData;
+
 task_t *tasks = NULL;
 task_t *running = NULL;
 
@@ -11,7 +17,8 @@ static bool execute(task_t *task) {
 	uint8_t *messages = task->messages;
 	running = task;
 	while (pos < len) {
-		collect(messages[pos++]);
+		if (collect(messages[pos++]))
+			dispatchMsg(NULL);
 		if (start != task->ms) { // return true if task got rescheduled during run.
 			task->pos = ( pos == len ? 0 : pos ); // last message executed? -> start over next time
 			running = NULL;
@@ -56,34 +63,6 @@ static void reportTask(uint8_t id, task_t *task, bool error) {
 	}
 	byte = CMD_END_SYSEX;
 	binConsole->write(binConsole, &byte, 1, 0);
-}
-
-void runTasks(void) {
-	if (tasks) {
-		long now = millis();
-		task_t *current = tasks;
-		task_t *previous = NULL;
-		while (current) {
-			if (current->ms > 0 && current->ms < now) { // TODO handle overflow
-				if (execute(current)) {
-					previous = current;
-					current = current->next;
-				} else {
-					if (previous) {
-						previous->next = current->next;
-						free(current);
-						current = previous->next;
-					} else {
-						tasks = current->next;
-						free(current);
-						current = tasks;
-					}
-				}
-			} else {
-				current = current->next;
-			}
-		}
-	}
 }
 
 void cmdReportProtocolVersion(void) {
@@ -157,7 +136,7 @@ void cmdDelayTask(long delay_ms) {
 	if (running) {
 		long now = millis();
 		running->ms += delay_ms;
-		if (running->ms < now) { //if delay time allready passed by schedule to 'now'.
+		if (running->ms < now) { // if delay time allready passed by schedule to 'now'.
 			running->ms = now;
 		}
 	}
@@ -206,8 +185,78 @@ void cmdSystemReset(void) {
 	pin_status_size = 0;
 }
 
-void dispatchString(char *) {
-	errWrite("Not Implemented: dispatchString");
+void cmdRealtimeServer(uint16_t timeout) {
+	bool loop = true;
+	uint8_t query = 0;
+	uint8_t answer = CMD_EID_NON_REALTIME;
+	uint8_t data = 0;
+	uint16_t mstart, ustart, uend, mend;
+	if (timeout > 999) timeout = 999;
+	mstart = millis();
+	while(loop) {
+		ustart = micros();
+		binConsole->read(binConsole, &query, 1, timeout);
+		switch (query) {
+			case CMD_REALTIME_SYN:
+				answer = CMD_REALTIME_ACK;
+				binConsole->write(binConsole, &answer, 1, 0);
+				break;
+			case CMD_REALTIME_ACK:
+				answer = micros(); // TODO get micros MSB only;
+				binConsole->write(binConsole, &answer, 1, 0);
+				binConsole->read(binConsole, &data, 1, timeout);
+				break;
+			case CMD_REALTIME_NACK:
+				answer = 1; // TODO error code
+				binConsole->write(binConsole, &answer, 1, 0);
+				break;
+			case CMD_REALTIME_TIME_RESET: // sync microseconds
+				//hal_time_reset();
+				answer = micros(); // TODO get micros MSB only;
+				binConsole->write(binConsole, &answer, 1, 1);
+				binConsole->read(binConsole, &data, 1, timeout); // receive offset
+				//hal_time_adj(data);
+				break;
+			case CMD_REALTIME_FIN:
+				answer = CMD_EID_NON_REALTIME;
+				binConsole->write(binConsole, &answer, 1, 0);
+				break;
+			case CMD_EID_NON_REALTIME: // exit 'realtime mode'
+			default:
+				answer = CMD_EID_NON_REALTIME;
+				loop = false;
+				binConsole->write(binConsole, &answer, 1, 0);
+				break;
+		}
+		mend = millis();
+		uend = micros();
+		if (elapsed(mstart, ustart, uend, mend)>=timeout) break;
+	}
+}
+
+uint8_t realtimeClient(uint8_t rpc) {
+	bool loop = true;
+	uint8_t query = CMD_REALTIME_ACK;
+	uint8_t data = 0;
+	uint16_t mstart, ustart, uend, mend;
+	uint16_t timeout = timeout;
+	if (timeout > 999) timeout = 999;
+	mstart = millis();
+	ustart = micros();
+	switch (rpc) {
+		case CMD_REALTIME_ACK: // ping-pong to measure RR time
+			// TODO
+			break;
+		case CMD_REALTIME_TIME_RESET: // sync microseconds
+			// TODO
+			break;
+		case CMD_EID_NON_REALTIME: // exit 'realtime mode'
+		default:
+			query = CMD_EID_NON_REALTIME;
+			binConsole->write(binConsole, &query, 1, 0);
+			break;
+	}
+	return data;
 }
 
 void dispatchSimple(uint8_t cmd, uint8_t byte1, uint8_t byte2) {
@@ -242,6 +291,7 @@ void dispatchSimple(uint8_t cmd, uint8_t byte1, uint8_t byte2) {
 }
 
 void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv) {
+	uint8_t datalen = 0;
 	switch(cmd) {
 		case CMD_EID_RCOUT:
 			errWrite("Not Implemented: %d (CMD_EID_RCOUT)", cmd);
@@ -249,7 +299,7 @@ void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv) {
 		case CMD_EID_RCIN:
 			errWrite("Not Implemented: %d (CMD_EID_RCIN)", cmd);
 			break;
-		case CMD_EID_DEVICE_QUERY: 
+		case CMD_EID_DEVICE_QUERY:
 			errWrite("Not Implemented: %d (CMD_EID_DEVICE_QUERY)", cmd);
 			break;
 		case CMD_EID_DEVICE_RESPONSE:
@@ -304,19 +354,15 @@ void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv) {
 			errWrite("Not Implemented: %d (CMD_EID_SERVO_CONFIG)", cmd);
 			break;
 		case CMD_EID_STRING_DATA:
-			if (cbString) {
-				// The string length will only be at most half the size of the
-				// stored input buffer so we can decode the string within the buffer.
-				uint8_t datalen = (argc-1)/2;
-				cbDecoder(argv, datalen, argv);
-				// Make sure string is null terminated. This may be the case for data
-				// coming from client libraries in languages that don't null terminate
-				// strings.
-				if (argv[datalen-1] != '\0') {
-					argv[datalen] = '\0';
-				}
-				dispatchString((char *)&argv[0]);
-			}
+			// The string length will only be at most half the size of the
+			// stored input buffer so we can decode the string within the buffer.
+			datalen = (argc-1)/2;
+			cbDecoder(argv, datalen, argv);
+			// Make sure string is null terminated. This may be the case for data
+			// coming from client libraries in languages that don't null terminate
+			// strings.
+			if (argv[datalen-1]!='\0') argv[datalen] = '\0';
+			logWrite((char *)argv);
 			break;
 		case CMD_EID_STEPPER_DATA:
 			errWrite("Not Implemented: %d (CMD_EID_STEPPER_DATA)", cmd);
@@ -391,11 +437,8 @@ void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv) {
 		case CMD_EID_ANALOG_CONFIG:
 			errWrite("Not Implemented: %d (CMD_EID_ANALOG_CONFIG)", cmd);
 			break;
-		case CMD_EID_NON_REALTIME:
-			errWrite("Not Implemented: %d (CMD_EID_NON_REALTIME)", cmd);
-			break;
 		case CMD_EID_REALTIME:
-			errWrite("Not Implemented: %d (CMD_EID_REALTIME)", cmd);
+			cmdRealtimeServer(TICKRATE);
 			break;
 		case CMD_EID_EXTEND:
 			errWrite("Not Implemented: %d (CMD_EID_EXTEND)", cmd);
@@ -406,3 +449,117 @@ void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv) {
 	}
 }
 
+void signal(uint8_t sig, uint8_t count, uint8_t *data) {
+	uint8_t cmd[count+3];
+	cmd[0] = CMD_START_SYSEX;
+	cmd[1] = sig;
+	for(int i=0;i<count;i++) {
+		cmd[i+2] = data[i];
+	}
+	cmd[count+2] = CMD_END_SYSEX;
+	logWrite(">> ");
+	printMsg(count+3, cmd);
+	logWrite("\n");
+	binConsole->write(binConsole, cmd, count+3, 0);
+}
+
+void scheduler_run(void) {
+	if (tasks) {
+		long now = millis();
+		task_t *current = tasks;
+		task_t *previous = NULL;
+		while (current) {
+			if (current->ms > 0 && current->ms < now) { // TODO handle overflow
+				if (execute(current)) {
+					previous = current;
+					current = current->next;
+				} else {
+					if (previous) {
+						previous->next = current->next;
+						free(current);
+						current = previous->next;
+					} else {
+						tasks = current->next;
+						free(current);
+						current = tasks;
+					}
+				}
+			} else {
+				current = current->next;
+			}
+		}
+	}
+}
+
+void init(void) {
+	// init hardware
+	hal_init();
+	// setup dispatch callbacks
+	printString = logWrite;
+	printErr = errWrite;
+	cbSimple = dispatchSimple;
+	cbSysex = dispatchSysex;
+}
+
+void run(void) {
+	// start
+	ustart = micros();
+	mstart = millis();
+	// --- hardware tasks
+	hal_run();
+	// --- receive 1 byte
+	if (binConsole->available(binConsole)) {
+		binConsole->read(binConsole, &binData, 1, 0);
+		if (collect(binData))
+			dispatchMsg(NULL);
+	}
+	if (txtConsole) if (txtConsole->available(txtConsole)) {
+		txtConsole->read(txtConsole, &txtData, 1, 0);
+		// TODO dispatch txtConsole
+	}
+	if (peering) if (peering->available(peering)) {
+		peering->read(peering, &peerData, 1, 0);
+		// TODO dispatch peerConsole
+	}
+	// --- scheduled tasks
+	scheduler_run();
+
+	// evaluate spare time
+	uelapsed = elapsed(mstart, ustart, micros(), millis());
+	if (uelapsed >= TICKRATE) {
+		jitter = jitter+(uelapsed-TICKRATE);
+		if (jitter>=TICKRATE) {
+			uint8_t lag = jitter/1000;
+			signal(CMD_EID_USER_SIGLAG,1,&lag);
+			jitter = jitter%1000;
+		}
+		return;
+	}
+
+	// spend spare time
+	while(uelapsed<TICKRATE) {
+		// receive data
+		if (binConsole->available(binConsole)) {
+			binConsole->read(binConsole, &binData, 1, 0);
+			if (collect(binData))
+				dispatchMsg(NULL);
+		}
+		if (txtConsole) if (txtConsole->available(txtConsole)) {
+			txtConsole->read(txtConsole, &txtData, 1, 0);
+			// TODO dispatch txtConsole data
+		}
+		if (peering) if (peering->available(peering)) {
+			peering->read(peering, &peerData, 1, 0);
+			// TODO dispatch peering data
+		}
+		// evaluate elapsed time
+		uelapsed = elapsed(mstart, ustart, micros(), millis());
+	}
+	// evaluate jitter
+	jitter = jitter+(uelapsed-TICKRATE);
+	if (jitter>=TICKRATE) {
+		uint8_t lag = jitter/1000;
+		signal(CMD_EID_USER_SIGLAG,1,&lag);
+		jitter = jitter%1000;
+	}
+}

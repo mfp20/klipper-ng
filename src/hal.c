@@ -4,8 +4,8 @@
 pin_status_t *pin_status = NULL;
 uint8_t pin_status_size = 0;
 
-commport_t *txtConsole; // serial channel for text messages and user interactive console
 commport_t *binConsole; // serial channel for binary control messages
+commport_t *txtConsole; // serial channel for text messages and user interactive console
 commport_t *peering; // serial channel for p2p messages with other MCUs (ex: sync)
 
 void hal_init(void) {
@@ -13,7 +13,6 @@ void hal_init(void) {
 	board_init();
 
 	binConsole = &ports[0];
-	txtConsole = binConsole;
 
 	// register pin status
 	uint8_t last;
@@ -80,8 +79,9 @@ void hal_init(void) {
 	//printf("Hal::init OK\n");
 }
 
-uint16_t hal_run(void) {
-	return arch_run() + board_run();
+void hal_run(void) {
+	arch_run();
+	board_run();
 }
 
 void usePin(uint8_t pin, uint8_t mode) {

@@ -12,6 +12,7 @@ extern "C" {
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <inttypes.h>
 
@@ -72,6 +73,31 @@ extern "C" {
 	uint16_t micros(void);
 	uint16_t millis(void);
 	uint16_t seconds(void);
+	inline uint16_t elapsed(uint16_t mstart, uint16_t ustart, uint16_t uend, uint16_t mend) {
+		// less than 1ms, within the same millisecond interval
+		if (mstart==mend) {
+			if (uend>ustart) {
+				return uend-ustart;
+			} else {
+				return (1000-ustart)+uend;
+			}
+			// less than 1ms, across 2ms interval
+		} else if (mend==mstart+1) {
+			if (uend>ustart) {
+				return (1000-ustart)+uend;
+			} else {
+				return (1000-ustart)+uend;
+			}
+			// more than 1ms
+		} else {
+			if (mend>mstart) {
+				return ((mend-mstart-1)*1000)+((1000-ustart)+uend);
+			} else {
+				return (((1000-mstart)+mend+1)*1000)+((1000-ustart)+uend);
+			}
+		}
+	}
+
 
 	// PINS
 	// Set pin to input/output mode.
@@ -167,22 +193,8 @@ extern "C" {
 
 	// tasks to run every loop cycle
 	void _arch_run(void);
-	inline uint16_t arch_run(void) {
-		// start
-		uint16_t ustart = micros();
-
-		// work
+	inline void arch_run(void) {
 		_arch_run();
-
-		// end
-		uint16_t uend = micros();
-		uint16_t elapsed;
-		if (uend>=ustart) {
-			elapsed = uend-ustart;
-		} else {
-			elapsed = ((999-ustart)+uend);
-		}
-		return elapsed;
 	}
 
 	// set MCU to know state (ie: ready for init)

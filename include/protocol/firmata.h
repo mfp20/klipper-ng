@@ -8,15 +8,15 @@ extern "C" {
 #include <stddef.h>
 #include <inttypes.h>
 
-	// firmata protocol version number
+// firmata protocol version number
 #define PROTOCOL_FIRMATA_VERSION_MAJOR  2 // for non-compatible changes
 #define PROTOCOL_FIRMATA_VERSION_MINOR  6 // for backwards compatible changes
 #define PROTOCOL_FIRMATA_VERSION_BUGFIX 0 // for bugfix releases
 
-	// max number of data bytes in incoming messages
+// max number of data bytes in incoming messages
 #define PROTOCOL_FIRMATA_MAX_DATA_PER_MSG   57
 
-	// message command bytes (128-255/0x80-0xFF)
+// message command bytes (128-255/0x80-0xFF)
 #define CMD_DIGITAL_MESSAGE         0x90 // send data for a digital pin
 #define CMD_REPORT_ANALOG           0xC0 // enable analog input by pin #
 #define CMD_REPORT_DIGITAL          0xD0 // enable digital input by port pair
@@ -28,9 +28,9 @@ extern "C" {
 #define CMD_REPORT_VERSION          0xF9 // report protocol version
 #define CMD_SYSTEM_RESET            0xFF // reset from MIDI
 
-	// extended command set using sysex (0-127/0x00-0x7F)
+// extended command set using sysex (0-127/0x00-0x7F)
 #define CMD_EID_EXTEND					0x00 // the next 2 bytes define the extended ID
-	// 0x01-0x0F reserved for user-defined commands
+// 0x01-0x0F reserved for user-defined commands
 #define CMD_EID_RCOUT					0x5C // PROPOSED: bridge to RCSwitch Arduino library
 #define CMD_EID_RCIN					0x5D // PROPOSED: bridge to RCSwitch Arduino library
 #define CMD_EID_DEVICE_QUERY			0x5E // PROPOSED: Generic Device Driver RPC
@@ -61,11 +61,11 @@ extern "C" {
 #define CMD_EID_REPORT_FIRMWARE			0x79 // report name and version of the firmware
 #define CMD_EID_SAMPLING_INTERVAL		0x7A // set the poll rate of the main loop
 #define CMD_EID_SCHEDULER_DATA			0x7B // send a createtask/deletetask/addtotask/schedule/querytasks/querytask request to the scheduler
-#define CMD_EID_ANALOG_CONFIG			0x7C // PROPOSAL: 
+#define CMD_EID_ANALOG_CONFIG			0x7C // PROPOSAL:
 #define CMD_EID_NON_REALTIME			0x7E // MIDI Reserved for non-realtime messages
 #define CMD_EID_REALTIME				0x7F // MIDI Reserved for realtime messages
 
-	// Scheduler sub-sysex
+// Scheduler sub-sysex
 #define CMD_SUB_SCHED_CREATE		0
 #define CMD_SUB_SCHED_DELETE		1
 #define CMD_SUB_SCHED_ADD_TO		2
@@ -83,26 +83,35 @@ extern "C" {
 #include <protocol/firmata_user.h>
 
 	// callback function types
-	typedef void (*cbf_string_t)(char *);
+	typedef void (*cbf_varg)(const char *format, ...);
+	typedef void (*cbf_7bit_t)(uint8_t *data, uint8_t count, uint8_t *result);
 	typedef void (*cbf_simple_t)(uint8_t cmd, uint8_t byte1, uint8_t byte2);
 	typedef void (*cbf_sysex_t)(uint8_t cmd, uint8_t argc, uint8_t *argv);
-	typedef void (*cbf_7bit_t)(uint8_t *data, uint8_t count, uint8_t *result);
 
 	// callback functions
-	extern cbf_string_t cbString;
-	extern cbf_simple_t cbSimple;
-	extern cbf_sysex_t cbSysex;
+	extern cbf_varg printString;
+	extern cbf_varg printErr;
 	extern cbf_7bit_t cbEncoder;
 	extern cbf_7bit_t cbDecoder;
+	extern cbf_simple_t cbSimple;
+	extern cbf_sysex_t cbSysex;
 
-	// receive 1 byte and dispatch completed commands when fully received
-	void collect(uint8_t inputData);
 	// each byte become 2*byte to transmit (ie: bandwidth intensive)
 	void encode7bit(uint8_t *data, uint8_t count, uint8_t *result);
 	void decode7bit(uint8_t *data, uint8_t count, uint8_t *result);
 	// shift bits to reduce the amount of bytes to transmit (ie: CPU intensive)
 	void encode7bitCompat(uint8_t *data, uint8_t count, uint8_t *result);
 	void decode7bitCompat(uint8_t *data, uint8_t count, uint8_t *result);
+	// receive 1 byte and report complete msg
+	bool collect(uint8_t inputData);
+	// measure last msg
+	uint8_t measureMsg(void);
+	// store last msg
+	void storeMsg(uint8_t *copied);
+	// dispatch given msg (or last msg if *msg==NULL)
+	void dispatchMsg(uint8_t *msg);
+	// print message
+	void printMsg(uint8_t count, uint8_t *msg);
 
 #ifdef __cplusplus
 }

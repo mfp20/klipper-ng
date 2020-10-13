@@ -11,10 +11,22 @@
 # make help
 # 
 
-BOARD ?= genericlinux
-ifeq ($(BOARD),genericlinux)
+BOARD ?= simulinux
+ifeq ($(BOARD),simulinux)
 	MCU=bogus
 	CROSS_COMPILE=
+endif
+ifeq ($(BOARD),genericx86)
+	MCU=x86
+	CROSS_COMPILE=
+endif
+ifeq ($(BOARD),rpi)
+	MCU=arm
+	CROSS_COMPILE=arm-
+endif
+ifeq ($(BOARD),odroid)
+	MCU=arm
+	CROSS_COMPILE=arm-
 endif
 ifeq ($(BOARD),generic328p)
 	MCU=atmega328p

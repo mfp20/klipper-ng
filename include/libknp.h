@@ -9,6 +9,7 @@ extern "C" {
 #include <hal.h>
 #include <protocol/firmata.h>
 
+#define TICKRATE 1000
 #define firmata_task_len(a)(sizeof(task_t)+(a)->len)
 
 	typedef struct task_s {
@@ -23,10 +24,15 @@ extern "C" {
 	extern task_t *tasks;
 	extern task_t *running;
 
-	void runTasks(void);
-
+	// system commands
 	void cmdReportProtocolVersion(void);
 	void cmdReportFirmwareVersion(void);
+	void cmdSystemReset(void);
+
+	// pin commands
+	// TODO
+
+	// scheduler commands
 	void cmdCreateTask(uint8_t id, int len);
 	void cmdDeleteTask(uint8_t id);
 	void cmdAddToTask(uint8_t id, int additionalBytes, uint8_t *message);
@@ -35,11 +41,24 @@ extern "C" {
 	void cmdQueryAllTasks(void);
 	void cmdQueryTask(uint8_t id);
 	void cmdSchedulerReset(void);
-	void cmdSystemReset(void);
 
-	void dispatchString(char *);
+	// fast 1-byte remote procedure calls
+	void cmdRealtimeServer(uint16_t timeout);
+	uint8_t realtimeClient(uint8_t rpc);
+
+	// callbacks to dispatch received commands
 	void dispatchSimple(uint8_t cmd, uint8_t byte1, uint8_t byte2);
 	void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv);
+
+	// transmit 1 signal (ie: SysEx) to host
+	void signal(uint8_t sig, uint8_t count, uint8_t *data);
+
+	// run scheduled tasks (if any), at the right time
+	void scheduler_run(void);
+
+	// init&run examples
+	void init(void);
+	void run(void);
 
 #ifdef __cplusplus
 }

@@ -47,6 +47,7 @@ static void * _timer_thread(void * data) {
 	while(1) {
 		cstart = ticks();
 		nstart = ns();
+		// set new time values
 		pthread_mutex_lock(&timer_lock);
 		tnano = tnano + ((uint16_t)(timer_cdiff/timer_avg));
 		tmicro = tmicro + tnano/1000;
@@ -56,6 +57,7 @@ static void * _timer_thread(void * data) {
 		tmicro = tmicro % 1000;
 		tnano = tnano % 1000;
 		pthread_mutex_unlock(&timer_lock);
+		//
 		for (int i = 0;i<timer_dummyload_1us;i++) bogo+=bogo;
 		nend = ns();
 		cend = ticks();
@@ -115,27 +117,35 @@ uint16_t seconds(void) {
 void pin_mode(uint8_t pin, uint8_t mode) {
 	usleep(1);
 }
+
 uint8_t pin_read(uint8_t pin) {
 	return rand() % 1;
 }
+
 void pin_set_low(uint8_t pin) {
 	usleep(1);
 }
+
 void pin_set_high(uint8_t pin) {
 	usleep(1);
 }
+
 void pin_toggle(uint8_t pin) {
 	usleep(1);
 }
+
 void pin_write(uint8_t pin, uint8_t value) {
 	usleep(1);
 }
+
 void pin_pullup_enable(uint8_t pin) {
 	usleep(1);
 }
+
 void pin_open_drain(uint8_t pin) {
 	usleep(1);
 }
+
 unsigned char pin_port_read(uint8_t port, uint8_t bitmask) {
 	unsigned char out = 0;
 	// TODO
@@ -145,6 +155,7 @@ unsigned char pin_port_read(uint8_t port, uint8_t bitmask) {
 	return 0;
 	return out;
 }
+
 unsigned char pin_port_write(uint8_t port, uint8_t value, uint8_t bitmask) {
 	if (port == 0) {
 		//bitmask = bitmask & 0xFC;  // do not touch Tx & Rx pins
@@ -352,11 +363,21 @@ bool uart_available(commport_t *uart) {
 
 int uart_read(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout) {
 	read(uart->fd, data, count);
+	//printf("uart_read %d bytes: ", count);
+	//for(int i=0;i<count;i++) {
+	//	printf("%x ", data[i]);
+	//}
+	//printf("\n");
 	return 0;
 }
 
 int uart_write(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout) {
 	write(uart->fd, data, count);
+	//printf("uart_write %d bytes: ", count);
+	//for(int i=0;i<count;i++) {
+	//	printf("%x ", data[i]);
+	//}
+	//printf("\n");
 	return 0;
 }
 
@@ -371,6 +392,7 @@ void _arch_init(void) {
 	timer_init();
 	// init default port (ports[0])
 	commport_register(COMMPORT_TYPE_UART, 0);
+	ports[0].begin(&ports[0], DEFAULT_BAUD);
 	//printf("_arch_init() OK\n");
 }
 
