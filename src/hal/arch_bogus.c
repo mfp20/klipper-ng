@@ -363,21 +363,21 @@ bool uart_available(commport_t *uart) {
 
 int uart_read(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout) {
 	read(uart->fd, data, count);
-	//printf("uart_read %d bytes: ", count);
-	//for(int i=0;i<count;i++) {
-	//	printf("%x ", data[i]);
-	//}
-	//printf("\n");
+	printf(">> ");
+	for(int i=0;i<count;i++) {
+		printf("%0x ", data[i]);
+	}
+	printf("\n");
 	return 0;
 }
 
 int uart_write(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout) {
 	write(uart->fd, data, count);
-	//printf("uart_write %d bytes: ", count);
-	//for(int i=0;i<count;i++) {
-	//	printf("%x ", data[i]);
-	//}
-	//printf("\n");
+	printf("<< ");
+	for(int i=0;i<count;i++) {
+		printf("%0x ", data[i]);
+	}
+	printf("\n");
 	return 0;
 }
 

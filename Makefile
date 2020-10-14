@@ -68,7 +68,7 @@ SRCS_PROTO	:= \
 SRCS_LIB	:= \
 	src/libknp.c
 SRCS_FW		:= \
-	src/firmware.c
+	src/firmware_$(BOARD).c
 SRCS_HOST	:= \
 	$(wildcard src/host/chelper/*.c)
 OBJS_UTIL	:= $(SRCS_UTIL:%.c=$(DIR_OBJ)/%.o)

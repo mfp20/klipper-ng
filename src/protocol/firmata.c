@@ -1,21 +1,19 @@
 
 #include <protocol/firmata.h>
+#include <stdlib.h> // for malloc
 
 // callback functions
-cbf_varg printString = NULL;
-cbf_varg printErr = NULL;
+cbf_varg_t printString = NULL;
+cbf_varg_t printErr = NULL;
 cbf_7bit_t cbEncoder = encode7bit;
 cbf_7bit_t cbDecoder = decode7bit;
-cbf_simple_t cbSimple = NULL;
-cbf_sysex_t cbSysex = NULL;
 
 // input message handling
 static uint8_t waitForData; // this flag says the next serial input will be data
-static uint8_t executeMultiByteCommand; // execute this after getting multi-byte data
-static uint8_t multiByteChannel; // channel data for multiByteCommands
-static uint8_t storedInputData[PROTOCOL_FIRMATA_MAX_DATA_PER_MSG]; // multi-byte data
 static bool parsingSysex;
-static uint8_t sysexBytesRead;
+uint8_t multiByteChannel; // channel data for multiByteCommands
+uint8_t storedInputData[PROTOCOL_MAX_DATA]; // multi-byte data
+uint8_t sysexBytesRead;
 
 void encode7bit(uint8_t *data, uint8_t count, uint8_t *result) {
 	int i = 0;
@@ -77,15 +75,15 @@ void decode7bitCompat(uint8_t *data, uint8_t count, uint8_t *result) {
 	}
 }
 
-bool collect(uint8_t inputData) {
+uint8_t receiveMsg(uint8_t inputData) {
 	uint8_t command;
 	// if we are currently parsing a sysex ...
 	if (parsingSysex) {
-		if (inputData == CMD_END_SYSEX) {
+		if (inputData == CMD_SYSEX_END) {
 			// stop sysex byte
 			parsingSysex = false;
 			// signal the completed message is in storedInputData
-			return true;
+			return sysexBytesRead;
 		} else {
 			// normal data byte - add to buffer
 			storedInputData[sysexBytesRead] = inputData;
@@ -97,7 +95,7 @@ bool collect(uint8_t inputData) {
 		storedInputData[waitForData+1] = inputData;
 		if ( (waitForData == 0) && storedInputData[0] ) { // got the whole message
 			// signal the completed message is in storedInputData
-			return true;
+			return sysexBytesRead;
 		}
 		// ... or this is the first byte of a new command.
 	} else {
@@ -110,30 +108,32 @@ bool collect(uint8_t inputData) {
 			// commands in the 0xF* range don't use channel data
 		}
 		switch (command) {
-			case CMD_START_SYSEX:
+			case CMD_SYSEX_START:
 				parsingSysex = true;
-				storedInputData[0] = CMD_START_SYSEX;
+				storedInputData[0] = CMD_SYSEX_START;
 				sysexBytesRead = 1;
 				break;
-			case CMD_DIGITAL_MESSAGE:
-			case CMD_ANALOG_MESSAGE:
-			case CMD_SET_PIN_MODE:
-			case CMD_SET_DIGITAL_PIN_VALUE:
+		case CMD_PIN_MODE:
+		case CMD_DIGITAL_PORT_DATA:
+		case CMD_DIGITAL_PIN_DATA:
+		case CMD_ANALOG_PIN_DATA:
 				waitForData = 2; // two data bytes needed
 				storedInputData[0] = command;
 				break;
-			case CMD_REPORT_ANALOG:
-			case CMD_REPORT_DIGITAL:
+		case CMD_DIGITAL_PORT_REPORT:
+		case CMD_DIGITAL_PIN_REPORT:
+		case CMD_ANALOG_PIN_REPORT:
 				waitForData = 1; // one data byte needed
 				storedInputData[0] = command;
 				break;
 			case CMD_SYSTEM_RESET:
-			case CMD_REPORT_VERSION:
+			case CMD_VERSION_REPORT:
 				storedInputData[0] = command;
+				sysexBytesRead = 1;
 				// signal the completed message is in storedInputData
-				return true;
+				return sysexBytesRead;
 				break;
-			case CMD_EID_NON_REALTIME:
+			case SYSEX_REALTIME_END:
 				// discard spurious realtime session ending
 			default:
 				// unknown starting bytes are silently discarded
@@ -141,26 +141,27 @@ bool collect(uint8_t inputData) {
 				break;
 		}
 	}
-	return false;
+	return 0;
 }
 
 uint8_t measureMsg(void) {
 	switch(storedInputData[0]) {
-		case CMD_START_SYSEX:
+		case CMD_SYSEX_START:
 			return sysexBytesRead;
 			break;
-		case CMD_DIGITAL_MESSAGE:
-		case CMD_ANALOG_MESSAGE:
-		case CMD_SET_PIN_MODE:
-		case CMD_SET_DIGITAL_PIN_VALUE:
+		case CMD_PIN_MODE:
+		case CMD_DIGITAL_PORT_DATA:
+		case CMD_DIGITAL_PIN_DATA:
+		case CMD_ANALOG_PIN_DATA:
 			return 3;
 			break;
-		case CMD_REPORT_ANALOG:
-		case CMD_REPORT_DIGITAL:
+		case CMD_DIGITAL_PORT_REPORT:
+		case CMD_DIGITAL_PIN_REPORT:
+		case CMD_ANALOG_PIN_REPORT:
 			return 2;
 			break;
 		case CMD_SYSTEM_RESET:
-		case CMD_REPORT_VERSION:
+		case CMD_VERSION_REPORT:
 			return 1;
 			break;
 		default:
@@ -171,64 +172,31 @@ uint8_t measureMsg(void) {
 
 void storeMsg(uint8_t *msg) {
 	switch(msg[0]) {
-		case CMD_START_SYSEX:
+		case CMD_SYSEX_START:
 			for(int i=0;i<sysexBytesRead;i++) {
 				msg[i] = storedInputData[i];
 			}
 			break;
-		case CMD_DIGITAL_MESSAGE:
-		case CMD_ANALOG_MESSAGE:
-		case CMD_SET_PIN_MODE:
-		case CMD_SET_DIGITAL_PIN_VALUE:
+		case CMD_PIN_MODE:
+		case CMD_DIGITAL_PORT_DATA:
+		case CMD_DIGITAL_PIN_DATA:
+		case CMD_ANALOG_PIN_DATA:
 			msg[0] = storedInputData[0];
 			msg[1] = storedInputData[1];
 			msg[2] = storedInputData[2];
 			break;
-		case CMD_REPORT_ANALOG:
-		case CMD_REPORT_DIGITAL:
+		case CMD_DIGITAL_PORT_REPORT:
+		case CMD_DIGITAL_PIN_REPORT:
+		case CMD_ANALOG_PIN_REPORT:
 			msg[0] = storedInputData[0];
 			msg[1] = storedInputData[1];
 			break;
 		case CMD_SYSTEM_RESET:
-		case CMD_REPORT_VERSION:
+		case CMD_VERSION_REPORT:
 			msg[0] = storedInputData[0];
 			break;
 		default:
 			msg[0] = 0;
-			break;
-	}
-}
-
-void dispatchMsg(uint8_t *msg) {
-	if (msg == NULL) msg = storedInputData;
-	switch(msg[0]) {
-		case CMD_DIGITAL_MESSAGE:
-		case CMD_ANALOG_MESSAGE:
-			(*cbSimple)(msg[0], multiByteChannel, (msg[1] << 7) + msg[2]);
-			break;
-		case CMD_SET_PIN_MODE:
-		case CMD_SET_DIGITAL_PIN_VALUE:
-			(*cbSimple)(msg[0], msg[2], msg[1]);
-			break;
-		case CMD_REPORT_ANALOG:
-		case CMD_REPORT_DIGITAL:
-			(*cbSimple)(msg[0], multiByteChannel, msg[1]);
-			break;
-		case CMD_SYSTEM_RESET:
-		case CMD_REPORT_VERSION:
-			(*cbSimple)(msg[0], 0, 0);
-			break;
-		case CMD_START_SYSEX:
-			switch (msg[1]) { // first byte is sysex start, second byte is command
-				case CMD_EID_REPORT_FIRMWARE:
-					(*cbSysex)(msg[1], 0, NULL);
-					break;
-				default:
-					(*cbSysex)(msg[1], sysexBytesRead - 1, msg + 1);
-					break;
-			}
-			break;
-		default:
 			break;
 	}
 }
@@ -239,155 +207,73 @@ void printMsg(uint8_t count, uint8_t *msg) {
 		msg = storedInputData;
 	}
 	switch(msg[0]) {
-		case CMD_START_SYSEX:
+		case CMD_SYSEX_START:
 			printString("%02x ", msg[1]);
 			for(int i=1;i<count;i++) {
 				printString("%02x ", msg[i]);
 			}
 			printString("(");
 			switch(msg[1]) {
-				case CMD_EID_EXTEND:
+				case SYSEX_EXTEND:
 					break;
-				case CMD_EID_USER_CHANGE_ENCODING:
-					break;
-				case CMD_EID_USER_REPORT_ENCODING:
-					break;
-				case CMD_EID_USER_SIGLAG:
-					printString("SysEx CMD_EID_USER_SIGLAG %dms", msg[2]);
-					break;
-				case CMD_EID_USER_DELAYALL:
+				case SYSEX_RCSWITCH_OUT:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USER5:
+				case SYSEX_RCSWITCH_IN:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USER6:
+				case SYSEX_DEVICE_REQ:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USER7:
+				case SYSEX_DEVICE_REP:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USER8:
+				case SYSEX_UART_DATA:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USER9:
+				case SYSEX_FEATURES_REPORT:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USERA:
+				case SYSEX_SPI_DATA:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USERB:
+				case SYSEX_PINMAP_REQ:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USERC:
+				case SYSEX_PINMAP_REP:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USERD:
+				case SYSEX_PINCAPS_REQ:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USERE:
+				case SYSEX_PINCAPS_REP:
 					printString("Not implemented");
 					break;
-				case CMD_EID_USERF:
+				case SYSEX_PINSTATE_REQ:
 					printString("Not implemented");
 					break;
-				case CMD_EID_RCOUT:
+				case SYSEX_PINSTATE_REP:
 					printString("Not implemented");
 					break;
-				case CMD_EID_RCIN:
+				case SYSEX_STRING_DATA:
 					printString("Not implemented");
 					break;
-				case CMD_EID_DEVICE_QUERY:
+				case SYSEX_ONEWIRE_DATA:
 					printString("Not implemented");
 					break;
-				case CMD_EID_DEVICE_RESPONSE:
+				case SYSEX_I2C_DATA:
 					printString("Not implemented");
 					break;
-				case CMD_EID_SERIAL_MESSAGE:
+				case SYSEX_VERSION_REPORT:
 					printString("Not implemented");
 					break;
-				case CMD_EID_ENCODER_DATA:
+				case SYSEX_SCHEDULER_DATA:
 					printString("Not implemented");
 					break;
-				case CMD_EID_ACCELSTEPPER_DATA:
+				case SYSEX_REALTIME_END:
 					printString("Not implemented");
 					break;
-				case CMD_EID_REPORT_DIGITAL_PIN:
-					printString("Not implemented");
-					break;
-				case CMD_EID_EXTENDED_REPORT_ANALOG:
-					printString("Not implemented");
-					break;
-				case CMD_EID_REPORT_FEATURES:
-					printString("Not implemented");
-					break;
-				case CMD_EID_SERIAL_DATA2:
-					printString("Not implemented");
-					break;
-				case CMD_EID_SPI_DATA:
-					printString("Not implemented");
-					break;
-				case CMD_EID_ANALOG_MAPPING_QUERY:
-					printString("Not implemented");
-					break;
-				case CMD_EID_ANALOG_MAPPING_RESPONSE:
-					printString("Not implemented");
-					break;
-				case CMD_EID_CAPABILITY_QUERY:
-					printString("Not implemented");
-					break;
-				case CMD_EID_CAPABILITY_RESPONSE:
-					printString("Not implemented");
-					break;
-				case CMD_EID_PIN_STATE_QUERY:
-					printString("Not implemented");
-					break;
-				case CMD_EID_PIN_STATE_RESPONSE:
-					printString("Not implemented");
-					break;
-				case CMD_EID_EXTENDED_ANALOG:
-					printString("Not implemented");
-					break;
-				case CMD_EID_SERVO_CONFIG:
-					printString("Not implemented");
-					break;
-				case CMD_EID_STRING_DATA:
-					printString("Not implemented");
-					break;
-				case CMD_EID_STEPPER_DATA:
-					printString("Not implemented");
-					break;
-				case CMD_EID_ONEWIRE_DATA:
-					printString("Not implemented");
-					break;
-				case CMD_EID_SHIFT_DATA:
-					printString("Not implemented");
-					break;
-				case CMD_EID_I2C_REQUEST:
-					printString("Not implemented");
-					break;
-				case CMD_EID_I2C_REPLY:
-					printString("Not implemented");
-					break;
-				case CMD_EID_I2C_CONFIG:
-					printString("Not implemented");
-					break;
-				case CMD_EID_REPORT_FIRMWARE:
-					printString("Not implemented");
-					break;
-				case CMD_EID_SAMPLING_INTERVAL:
-					printString("Not implemented");
-					break;
-				case CMD_EID_SCHEDULER_DATA:
-					printString("Not implemented");
-					break;
-				case CMD_EID_ANALOG_CONFIG:
-					printString("Not implemented");
-					break;
-				case CMD_EID_NON_REALTIME:
-					printString("Not implemented");
-					break;
-				case CMD_EID_REALTIME:
+				case SYSEX_REALTIME_START:
 					printString("Not implemented");
 					break;
 				default:
@@ -396,18 +282,19 @@ void printMsg(uint8_t count, uint8_t *msg) {
 			}
 			printString(")");
 			break;
-		case CMD_DIGITAL_MESSAGE:
-		case CMD_ANALOG_MESSAGE:
-		case CMD_SET_PIN_MODE:
-		case CMD_SET_DIGITAL_PIN_VALUE:
+		case CMD_PIN_MODE:
+		case CMD_DIGITAL_PORT_DATA:
+		case CMD_DIGITAL_PIN_DATA:
+		case CMD_ANALOG_PIN_DATA:
 			printString("%02x %02x %02x\n", msg[0], msg[1], msg[2]);
 			break;
-		case CMD_REPORT_ANALOG:
-		case CMD_REPORT_DIGITAL:
+		case CMD_DIGITAL_PORT_REPORT:
+		case CMD_DIGITAL_PIN_REPORT:
+		case CMD_ANALOG_PIN_REPORT:
 			printString("%02x %02x\n", msg[0], msg[1]);
 			break;
 		case CMD_SYSTEM_RESET:
-		case CMD_REPORT_VERSION:
+		case CMD_VERSION_REPORT:
 			printString("%02x\n", msg[0]);
 			break;
 		default:

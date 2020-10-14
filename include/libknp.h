@@ -24,15 +24,25 @@ extern "C" {
 	extern task_t *tasks;
 	extern task_t *running;
 
-	// system commands
+	// simple: system commands
+	void cmdSystemReset(void); // initialize a known default state
 	void cmdReportProtocolVersion(void);
+	// simple: pin commands
+	void cmdPinMode(uint8_t pin, uint8_t mode);
+	void cmdPinAnalog(uint8_t pin, uint8_t value);
+	void cmdPinDigital(uint8_t port, uint8_t value);
+	void cmdPinDigitalSetValue(uint8_t pin, uint8_t value);
+	void cmdReportPinAnalog(uint8_t pin, uint8_t en);
+	void cmdReportPinDigital(uint8_t port, uint8_t en);
+
+	// sysex: system commands
 	void cmdReportFirmwareVersion(void);
-	void cmdSystemReset(void);
 
-	// pin commands
-	// TODO
+	// sysex: fast remote procedure calls
+	void cmdRealtimeServer(uint16_t timeout); // starts realtime server
+	uint8_t realtimeClient(uint8_t rpc); // issue realtime commands
 
-	// scheduler commands
+	// sysex sub: scheduler commands
 	void cmdCreateTask(uint8_t id, int len);
 	void cmdDeleteTask(uint8_t id);
 	void cmdAddToTask(uint8_t id, int additionalBytes, uint8_t *message);
@@ -42,19 +52,15 @@ extern "C" {
 	void cmdQueryTask(uint8_t id);
 	void cmdSchedulerReset(void);
 
-	// fast 1-byte remote procedure calls
-	void cmdRealtimeServer(uint16_t timeout);
-	uint8_t realtimeClient(uint8_t rpc);
-
-	// callbacks to dispatch received commands
-	void dispatchSimple(uint8_t cmd, uint8_t byte1, uint8_t byte2);
-	void dispatchSysex(uint8_t cmd, uint8_t argc, uint8_t *argv);
-
-	// transmit 1 signal (ie: SysEx) to host
-	void signal(uint8_t sig, uint8_t count, uint8_t *data);
+	// run given cmd (or last msg if *msg==NULL)
+	void readCmd(uint8_t len, uint8_t *msg);
+	// send messages
+	// note: for simple messages argc=byte1 and argv=&byte2
+	// note: for sysex cmd = CMD_START_SYSEX and argv[0] sysex command
+	void writeCmd(uint8_t cmd, uint8_t argc, uint8_t *argv);
 
 	// run scheduled tasks (if any), at the right time
-	void scheduler_run(void);
+	void runScheduler(void);
 
 	// init&run examples
 	void init(void);

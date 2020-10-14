@@ -14,19 +14,19 @@
 #define TOTAL_ANALOG_PINS       8
 #define IS_PIN_DIGITAL(p)       ((p) >= 0 && (p) < TOTAL_PINS)
 #define IS_PIN_ANALOG(p)        ((p) >= FIRST_ANALOG_PIN && (p) < (FIRST_ANALOG_PIN+TOTAL_ANALOG_PINS))
-#define IS_PIN_INTERRUPT(p)     ((p) == 4 || (p) == 6)
-#define IS_PIN_PWM(p)           ((p) == 5 || (p) == 7)
-#define IS_PIN_1WIRE(p)			((p) == 9)
-#define IS_PIN_UART(p)			((p) == 1 || (p) == 2)
-#define IS_PIN_I2C(p)           ((p) == 3 || (p) == 4)
-#define IS_PIN_SPI(p)           ((p) == 5 || (p) == 6 || (p) == 7 || (p) == 8)
+//#define IS_PIN_INTERRUPT(p)     ((p) == 4 || (p) == 6)
+//#define IS_PIN_PWM(p)           ((p) == 5 || (p) == 7)
+//#define IS_PIN_1WIRE(p)			((p) == 9)
+//#define IS_PIN_UART(p)			((p) == 1 || (p) == 2)
+//#define IS_PIN_I2C(p)           ((p) == 3 || (p) == 4)
+//#define IS_PIN_SPI(p)           ((p) == 5 || (p) == 6 || (p) == 7 || (p) == 8)
 #define ONEWIRE_QTY				0
 #define UARTS_QTY				1
 #define I2C_QTY					0
 #define SPI_QTY					0
 #define COMMPORT_QTY			((ONEWIRE_QTY)+(UARTS_QTY)+(I2C_QTY)+(SPI_QTY))
-#define RX_BUFFER_SIZE			64 // 1,2,4,8,16,32,64,128 or 256 bytes
-#define TX_BUFFER_SIZE			64 // 1,2,4,8,16,32,64,128 or 256 bytes
+//#define RX_BUFFER_SIZE			64 // 1,2,4,8,16,32,64,128 or 256 bytes
+//#define TX_BUFFER_SIZE			64 // 1,2,4,8,16,32,64,128 or 256 bytes
 
 #elif defined(__FIRMWARE_ARCH_X86__)
 

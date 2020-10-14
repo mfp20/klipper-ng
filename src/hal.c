@@ -8,7 +8,7 @@ commport_t *binConsole; // serial channel for binary control messages
 commport_t *txtConsole; // serial channel for text messages and user interactive console
 commport_t *peering; // serial channel for p2p messages with other MCUs (ex: sync)
 
-void hal_init(void) {
+void halInit(void) {
 	arch_init();
 	board_init();
 
@@ -79,7 +79,7 @@ void hal_init(void) {
 	//printf("Hal::init OK\n");
 }
 
-void hal_run(void) {
+void halRun(void) {
 	arch_run();
 	board_run();
 }
@@ -101,5 +101,17 @@ void freePin(uint8_t pin) {
 	pin_status[pin].mode = 0;
 	pin_status[pin].value = 0;
 	pin_status[pin].vextend = 0;
+}
+
+void binSend(uint8_t argc, uint8_t *argv) {
+	binConsole->write(binConsole, argv, argc, 0);
+}
+
+void txtSend(uint8_t argc, uint8_t *argv) {
+	txtConsole->write(txtConsole, argv, argc, 0);
+}
+
+void peerSend(uint8_t argc, uint8_t *argv) {
+	peering->write(peering, argv, argc, 0);
 }
 

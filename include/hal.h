@@ -31,11 +31,15 @@ extern "C" {
 	extern commport_t *txtConsole; // serial port for text messages and user interactive console
 	extern commport_t *peering; // serial port for p2p messages with other MCUs (ex: sync)
 
-	void hal_init(void);
-	void hal_run(void);
+	void halInit(void);
+	void halRun(void);
 
 	void usePin(uint8_t pin, uint8_t mode);
 	void freePin(uint8_t pin);
+
+	void binSend(uint8_t argc, uint8_t *argv);
+	void txtSend(uint8_t argc, uint8_t *argv);
+	void peerSend(uint8_t argc, uint8_t *argv);
 
 #ifdef __cplusplus
 }
