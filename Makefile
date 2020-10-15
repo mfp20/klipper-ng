@@ -64,7 +64,7 @@ SRCS_UTIL	:= \
 SRCS_HAL	:= \
 	src/hal/arch_$(MCU).c src/hal/board_$(BOARD).c
 SRCS_PROTO	:= \
-	$(wildcard src/protocol/*.c)
+	src/protocol.c
 SRCS_LIB	:= \
 	src/libknp.c
 SRCS_FW		:= \

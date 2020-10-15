@@ -7,7 +7,7 @@ extern "C" {
 #endif
 
 #include <hal.h>
-#include <protocol/firmata.h>
+#include <protocol.h>
 
 #define TICKRATE 1000
 #define firmata_task_len(a)(sizeof(task_t)+(a)->len)
@@ -38,10 +38,6 @@ extern "C" {
 	// sysex: system commands
 	void cmdReportFirmwareVersion(void);
 
-	// sysex: fast remote procedure calls
-	void cmdRealtimeServer(uint16_t timeout); // starts realtime server
-	uint8_t realtimeClient(uint8_t rpc); // issue realtime commands
-
 	// sysex sub: scheduler commands
 	void cmdCreateTask(uint8_t id, int len);
 	void cmdDeleteTask(uint8_t id);
@@ -53,11 +49,7 @@ extern "C" {
 	void cmdSchedulerReset(void);
 
 	// run given cmd (or last msg if *msg==NULL)
-	void readCmd(uint8_t len, uint8_t *msg);
-	// send messages
-	// note: for simple messages argc=byte1 and argv=&byte2
-	// note: for sysex cmd = CMD_START_SYSEX and argv[0] sysex command
-	void writeCmd(uint8_t cmd, uint8_t argc, uint8_t *argv);
+	void runEvent(uint8_t len, uint8_t *msg);
 
 	// run scheduled tasks (if any), at the right time
 	void runScheduler(void);

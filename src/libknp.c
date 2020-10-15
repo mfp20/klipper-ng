@@ -27,7 +27,9 @@ void cmdSystemReset(void) {
 
 void cmdReportProtocolVersion(void) {
 	uint8_t byte = PROTOCOL_VERSION_MINOR;
-	writeCmd(CMD_VERSION_REPORT, PROTOCOL_VERSION_MAJOR, &byte);
+	uint8_t *event;
+	encodeEvent(STATUS_VERSION_REPORT, PROTOCOL_VERSION_MAJOR, &byte, event);
+	// TODO send event
 }
 
 // SIMPLE PINs
@@ -62,80 +64,6 @@ void cmdReportFirmwareVersion(void) {
 	errWrite("Not Implemented: cmdReportFirmwareVersion\n");
 }
 
-void cmdRealtimeServer(uint16_t timeout) {
-	bool loop = true;
-	uint8_t query = 0;
-	uint8_t answer = SYSEX_REALTIME_END;
-	uint8_t data = 0;
-	uint16_t mstart, ustart, uend, mend;
-	if (timeout > 999) timeout = 999;
-	mstart = millis();
-	while(loop) {
-		ustart = micros();
-		binConsole->read(binConsole, &query, 1, timeout);
-		switch (query) {
-			case SYSEX_SUB_REALTIME_SYN:
-				answer = SYSEX_SUB_REALTIME_ACK;
-				binConsole->write(binConsole, &answer, 1, 0);
-				break;
-			case SYSEX_SUB_REALTIME_ACK:
-				answer = micros(); // TODO get micros MSB only;
-				binConsole->write(binConsole, &answer, 1, 0);
-				binConsole->read(binConsole, &data, 1, timeout);
-				break;
-			case SYSEX_SUB_REALTIME_NACK:
-				answer = 1; // TODO error code
-				binConsole->write(binConsole, &answer, 1, 0);
-				break;
-			case SYSEX_SUB_REALTIME_TIME_RESET: // sync microseconds
-				//hal_time_reset();
-				answer = micros(); // TODO get micros MSB only;
-				binConsole->write(binConsole, &answer, 1, 1);
-				binConsole->read(binConsole, &data, 1, timeout); // receive offset
-				//hal_time_adj(data);
-				break;
-			case SYSEX_SUB_REALTIME_FIN:
-				answer = SYSEX_REALTIME_END;
-				binConsole->write(binConsole, &answer, 1, 0);
-				break;
-			case SYSEX_REALTIME_END: // exit 'realtime mode'
-			default:
-				answer = SYSEX_REALTIME_END;
-				loop = false;
-				binConsole->write(binConsole, &answer, 1, 0);
-				break;
-		}
-		mend = millis();
-		uend = micros();
-		if (elapsed(mstart, ustart, uend, mend)>=timeout) break;
-	}
-}
-
-uint8_t realtimeClient(uint8_t rpc) {
-	bool loop = true;
-	uint8_t query = SYSEX_SUB_REALTIME_ACK;
-	uint8_t data = 0;
-	uint16_t mstart, ustart, uend, mend;
-	uint16_t timeout = timeout;
-	if (timeout > 999) timeout = 999;
-	mstart = millis();
-	ustart = micros();
-	switch (rpc) {
-		case SYSEX_SUB_REALTIME_ACK: // ping-pong to measure RR time
-			// TODO
-			break;
-		case SYSEX_SUB_REALTIME_TIME_RESET: // sync microseconds
-			// TODO
-			break;
-		case SYSEX_REALTIME_END: // exit 'realtime mode'
-		default:
-			query = SYSEX_REALTIME_END;
-			binConsole->write(binConsole, &query, 1, 0);
-			break;
-	}
-	return data;
-}
-
 // SYSEX SUB SCHEDULER
 
 static bool execute(task_t *task) {
@@ -145,8 +73,8 @@ static bool execute(task_t *task) {
 	uint8_t *messages = task->messages;
 	running = task;
 	while (pos < len) {
-		if (receiveMsg(messages[pos++]))
-			readCmd(0, NULL);
+		if (decodeEvent(messages[pos++]))
+			runEvent(0, NULL);
 		if (start != task->ms) { // return true if task got rescheduled during run.
 			task->pos = ( pos == len ? 0 : pos ); // last message executed? -> start over next time
 			running = NULL;
@@ -170,7 +98,7 @@ static task_t *findTask(uint8_t id) {
 }
 
 static void reportTask(uint8_t id, task_t *task, bool error) {
-	uint8_t byte = CMD_SYSEX_START;
+	uint8_t byte = STATUS_SYSEX_START;
 	binConsole->write(binConsole, &byte, 1, 0);
 	byte = SYSEX_SCHEDULER_DATA;
 	binConsole->write(binConsole, &byte, 1, 0);
@@ -189,7 +117,7 @@ static void reportTask(uint8_t id, task_t *task, bool error) {
 		encode7bitCompat(&((uint8_t *)task)[3], len, result);
 		binConsole->write(binConsole, result, len, 0);
 	}
-	byte = CMD_SYSEX_END;
+	byte = STATUS_SYSEX_END;
 	binConsole->write(binConsole, &byte, 1, 0);
 }
 
@@ -263,7 +191,7 @@ void cmdDelayTask(long delay_ms) {
 }
 
 void cmdQueryAllTasks(void) {
-	uint8_t byte = CMD_SYSEX_START;
+	uint8_t byte = STATUS_SYSEX_START;
 	binConsole->write(binConsole, &byte, 1, 0);
 	byte = SYSEX_SCHEDULER_DATA;
 	binConsole->write(binConsole, &byte, 1, 0);
@@ -274,7 +202,7 @@ void cmdQueryAllTasks(void) {
 		binConsole->write(binConsole, &task->id, 1, 0);
 		task = task->next;
 	}
-	byte = CMD_SYSEX_END;
+	byte = STATUS_SYSEX_END;
 	binConsole->write(binConsole, &byte, 1, 0);
 }
 
@@ -293,39 +221,39 @@ void cmdSchedulerReset(void) {
 
 // ------------------------
 
-void readCmd(uint8_t len, uint8_t *msg) {
-	if (msg == NULL) msg = storedInputData;
+void runEvent(uint8_t len, uint8_t *msg) {
+	if (msg == NULL) msg = &eventBuffer[3];
 	uint8_t datalen = 0;
 	switch(msg[0]) {
-		case CMD_PIN_MODE:
+		case STATUS_PIN_MODE:
 			cmdPinMode(msg[1], msg[2]);
 			break;
-		case CMD_DIGITAL_PORT_DATA:
-			cmdPinDigital(multiByteChannel, (msg[1] << 7) + msg[2]);
+		case STATUS_DIGITAL_PORT_DATA:
+			cmdPinDigital(msg[0] & 0x0F, (msg[1] << 7) + msg[2]);
 			break;
-		case CMD_DIGITAL_PIN_DATA:
+		case STATUS_DIGITAL_PIN_DATA:
 			cmdPinDigitalSetValue(msg[1], msg[2]);
 			break;
-		case CMD_ANALOG_PIN_DATA:
-			cmdPinAnalog(multiByteChannel, (msg[1] << 7) + msg[2]);
+		case STATUS_ANALOG_PIN_DATA:
+			cmdPinAnalog(msg[0] & 0x0F, (msg[1] << 7) + msg[2]);
 			break;
-		case CMD_DIGITAL_PORT_REPORT:
+		case STATUS_DIGITAL_PORT_REPORT:
 			break;
-		case CMD_DIGITAL_PIN_REPORT:
-			cmdReportPinDigital(multiByteChannel, msg[1]);
+		case STATUS_DIGITAL_PIN_REPORT:
+			cmdReportPinDigital(msg[0] & 0x0F, msg[1]);
 			break;
-		case CMD_ANALOG_PIN_REPORT:
-			cmdReportPinAnalog(multiByteChannel, msg[1]);
+		case STATUS_ANALOG_PIN_REPORT:
+			cmdReportPinAnalog(msg[0] & 0x0F, msg[1]);
 			break;
-		case CMD_SYSTEM_RESET:
+		case STATUS_SYSTEM_RESET:
 			cmdSystemReset();
 			break;
-		case CMD_VERSION_REPORT:
+		case STATUS_VERSION_REPORT:
 			cmdReportProtocolVersion();
 			break;
-		case CMD_SYSEX_START:
+		case STATUS_SYSEX_START:
 			switch (msg[1]) { // first byte is sysex start, second byte is command
-				case SYSEX_EXTEND:
+				case SYSEX_MOD_EXTEND:
 					switch(msg[2]+msg[3]) { // second byte is SYSEX_EXTEND, third&forth bytes are the extended commands
 						default:
 							errWrite("Not Implemented: %d (SYSEX_EXTEND)\n", msg[1]);
@@ -338,44 +266,44 @@ void readCmd(uint8_t len, uint8_t *msg) {
 					errWrite("Not Implemented: %d (SYSEX_EXTENDED_REPORT_ANALOG)\n", msg[1]);
 					break;
 				case SYSEX_SCHEDULER_DATA:
-					if (sysexBytesRead > 0) {
-						switch (storedInputData[0]) {
+					if (eventSize > 0) {
+						switch (eventBuffer[0]) {
 							case SYSEX_SUB_SCHED_CREATE:
-								if (sysexBytesRead == 4) {
-									cmdCreateTask(storedInputData[1], storedInputData[2] | storedInputData[3] << 7);
+								if (eventSize == 4) {
+									cmdCreateTask(eventBuffer[1], eventBuffer[2] | eventBuffer[3] << 7);
 								}
 								break;
 							case SYSEX_SUB_SCHED_ADD:
-								if (sysexBytesRead > 2) {
-									int len = num7BitOutbytes(sysexBytesRead - 2);
-									decode7bitCompat(storedInputData + 2, len, storedInputData + 2); // decode inplace
-									cmdAddToTask(storedInputData[1], len, storedInputData + 2); // addToTask copies data...
+								if (eventSize > 2) {
+									int len = num7BitOutbytes(eventSize - 2);
+									decode7bitCompat(eventBuffer + 2, len, eventBuffer + 2); // decode inplace
+									cmdAddToTask(eventBuffer[1], len, eventBuffer + 2); // addToTask copies data...
 								}
 								break;
 							case SYSEX_SUB_SCHED_DELAY:
-								if (sysexBytesRead == 6) {
-									//storedInputData++; compiler error after moving the sysex switch
-									decode7bitCompat(storedInputData, 4, storedInputData); // decode inplace
-									cmdDelayTask(*(long*)((uint8_t*)storedInputData));
+								if (eventSize == 6) {
+									//eventBuffer++; compiler error after moving the sysex switch
+									decode7bitCompat(eventBuffer, 4, eventBuffer); // decode inplace
+									cmdDelayTask(*(long*)((uint8_t*)eventBuffer));
 								}
 								break;
 							case SYSEX_SUB_SCHED_SCHEDULE:
-								if (sysexBytesRead == 7) { // one byte taskid, 5 bytes to encode 4 bytes of long
-									decode7bitCompat(storedInputData + 2, 4, storedInputData + 2); // decode inplace
-									cmdScheduleTask(storedInputData[1], *(long*)((uint8_t*)storedInputData + 2)); // storedInputData[1] | storedInputData[2]<<8 | storedInputData[3]<<16 | storedInputData[4]<<24
+								if (eventSize == 7) { // one byte taskid, 5 bytes to encode 4 bytes of long
+									decode7bitCompat(eventBuffer + 2, 4, eventBuffer + 2); // decode inplace
+									cmdScheduleTask(eventBuffer[1], *(long*)((uint8_t*)eventBuffer + 2)); // eventBuffer[1] | eventBuffer[2]<<8 | eventBuffer[3]<<16 | eventBuffer[4]<<24
 								}
 								break;
 							case SYSEX_SUB_SCHED_QUERY_ALL:
 								cmdQueryAllTasks();
 								break;
 							case SYSEX_SUB_SCHED_QUERY_TASK:
-								if (sysexBytesRead == 2) {
-									cmdQueryTask(storedInputData[1]);
+								if (eventSize == 2) {
+									cmdQueryTask(eventBuffer[1]);
 								}
 								break;
 							case SYSEX_SUB_SCHED_DELETE:
-								if (sysexBytesRead == 2) {
-									cmdDeleteTask(storedInputData[1]);
+								if (eventSize == 2) {
+									cmdDeleteTask(eventBuffer[1]);
 								}
 								break;
 							case SYSEX_SUB_SCHED_RESET:
@@ -398,16 +326,13 @@ void readCmd(uint8_t len, uint8_t *msg) {
 				case SYSEX_STRING_DATA:
 					// The string length will only be at most half the size of the
 					// stored input buffer so we can decode the string within the buffer.
-					datalen = (sysexBytesRead-1)/2;
-					cbDecoder(storedInputData, datalen, storedInputData);
+					datalen = (eventSize-1)/2;
+					cbDecoder(eventBuffer, datalen, eventBuffer);
 					// Make sure string is null terminated. This may be the case for data
 					// coming from client libraries in languages that don't null terminate
 					// strings.
-					if (storedInputData[datalen-1]!='\0') storedInputData[datalen] = '\0';
-					logWrite((char *)storedInputData);
-					break;
-				case SYSEX_CRC_DATA:
-					errWrite("Not Implemented: %d (SYSEX_SPI_DATA)\n", msg[1]);
+					if (eventBuffer[datalen-1]!='\0') eventBuffer[datalen] = '\0';
+					logWrite((char *)eventBuffer);
 					break;
 				case SYSEX_DIGITAL_PIN_REPORT:
 					errWrite("Not Implemented: %d (SYSEX_REPORT_DIGITAL_PIN)\n", msg[1]);
@@ -452,14 +377,8 @@ void readCmd(uint8_t len, uint8_t *msg) {
 				case SYSEX_RCSWITCH_IN:
 					errWrite("Not Implemented: %d (SYSEX_RCIN)\n", msg[1]);
 					break;
-				case SYSEX_REALTIME_END:
-					cmdRealtimeServer(TICKRATE);
-					break;
-				case SYSEX_REALTIME_START:
-					cmdRealtimeServer(TICKRATE);
-					break;
 				default:
-					//dispatchSysex(msg[1], sysexBytesRead - 1, msg + 1);
+					//dispatchSysex(msg[1], eventSize - 1, msg + 1);
 					errWrite("Not Implemented: %d (Unknown command)\n", msg[1]);
 					break;
 			}
@@ -467,49 +386,6 @@ void readCmd(uint8_t len, uint8_t *msg) {
 		default:
 			break;
 	}
-}
-
-void writeCmd(uint8_t cmd, uint8_t argc, uint8_t *argv) {
-	uint8_t count = 0;
-	uint8_t *msg;
-	switch (cmd) {
-		case CMD_PIN_MODE:
-		case CMD_DIGITAL_PORT_DATA:
-		case CMD_DIGITAL_PIN_DATA:
-		case CMD_ANALOG_PIN_DATA:
-			count = 3;
-			msg = (uint8_t*)malloc(sizeof(uint8_t)*count);
-			msg[0] = cmd;
-			msg[1] = argc;
-			msg[2] = *argv;
-			break;
-		case CMD_DIGITAL_PORT_REPORT:
-		case CMD_DIGITAL_PIN_REPORT:
-		case CMD_ANALOG_PIN_REPORT:
-			count = 2;
-			msg = (uint8_t*)malloc(sizeof(uint8_t)*count);
-			msg[0] = cmd;
-			msg[1] = argc;
-			break;
-		case CMD_SYSTEM_RESET:
-		case CMD_VERSION_REPORT:
-			count = 1;
-			msg = (uint8_t*)malloc(sizeof(uint8_t)*count);
-			msg[0] = cmd;
-			break;
-		case CMD_SYSEX_START:
-			msg[0] = cmd;
-			msg[1] = argv[0];
-			for(int i=0;i<argc+2;i++) {
-				msg[i+2] = argv[i];
-			}
-			msg[argc+1] = CMD_SYSEX_END;
-			break;
-		default:
-			break;
-	}
-	binConsole->write(binConsole, argv, argc, 0);
-	free(msg);
 }
 
 void runScheduler(void) {
@@ -560,17 +436,19 @@ void run(void) {
 	// --- evaluate performance and signal lag
 	if (jitter>=TICKRATE) {
 		uint8_t lag[2];
-		lag[0] = CMD_CONGESTION_REPORT;
+		lag[0] = STATUS_CONGESTION_REPORT;
 		lag[1] = jitter/1000;
-		writeCmd(CMD_CONGESTION_REPORT, 2, lag);
+		uint8_t *event;
+		encodeEvent(STATUS_CONGESTION_REPORT, 2, lag, event);
+		// TODO send event
 		jitter = jitter%1000;
 	}
 
 	// --- receive 1 byte
 	if (binConsole->available(binConsole)) {
 		binConsole->read(binConsole, &binData, 1, 0);
-		if (receiveMsg(binData))
-			readCmd(0, NULL);
+		if (decodeEvent(binData))
+			runEvent(0, NULL);
 	}
 	if (txtConsole) if (txtConsole->available(txtConsole)) {
 		txtConsole->read(txtConsole, &txtData, 1, 0);
@@ -596,8 +474,8 @@ void run(void) {
 		// receive data
 		if (binConsole->available(binConsole)) {
 			binConsole->read(binConsole, &binData, 1, 0);
-			if (receiveMsg(binData))
-				readCmd(0, NULL);
+			if (decodeEvent(binData))
+				runEvent(0, NULL);
 		}
 		if (txtConsole) if (txtConsole->available(txtConsole)) {
 			txtConsole->read(txtConsole, &txtData, 1, 0);
