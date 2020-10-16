@@ -1,6 +1,7 @@
 *.swp
 *.o
 *.a
+*.so
 *.bin
 __pycache__/
 _docs/
