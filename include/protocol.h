@@ -11,10 +11,11 @@ A MIDI byte stream is framed in 'events':
 		ticks = [0xFF][2 bytes delta time] (the time delay from the previous event)
 
 		message = [status_byte][status_data] (new event definition)
-			note: common events have max 2 bytes of data. Sysex have virtually unlimited bytes of data.
 
+Common events are 3 bytes long, ie: have max 2 bytes of data.
 To extend the amount of data in each event, the status byte can be 0xF0 to start a sysex.
-After 0xF0:
+Sysex have virtually unlimited bytes of data.
+After 'sysex start' (0xF0):
 
 			sysex = [mod_byte][sysex_byte][data][0xF7]
 
@@ -41,6 +42,19 @@ extern "C" {
 #define PROTOCOL_MAX_DATA   56
 #define PROTOCOL_TICK_BYTES	2 // the number of bytes to describe delta time
 
+#define PROTOCOL_ENCODING_REPORT	0
+// each input byte become 2*byte7bit to transmit (ie: bandwidth intensive)
+#define PROTOCOL_ENCODING_NORMAL	1
+// shift input bits to reduce the amount of output bytes to transmit (ie: CPU intensive)
+#define PROTOCOL_ENCODING_COMPAT	2
+
+// Realtime control signals
+#define REALTIME_SIG_SYN			1 // start of synchronous operation
+#define REALTIME_SIG_ACK			2 // confirm
+#define REALTIME_SIG_NACK			3 // problem
+#define REALTIME_SIG_FIN			4 // end of synchronous operation
+#define REALTIME_SIG_RST			5 // reset session
+
 // 1xxxxxxx:	status byte using control bytes (128-255/0x80-0xFF)
 //					0x80-0xEF: action message, specific to a port/pin and directly affect input/output
 //					0xF0-0xF7: common message, do not require an immediate response from the receiving
@@ -57,7 +71,7 @@ extern "C" {
 #define STATUS_TIMESTAMP_REPORT		0xF2 // report number of seconds since boot (or overflow)
 #define STATUS_CONGESTION_REPORT	0xF3 // report lag
 #define STATUS_VERSION_REPORT		0xF4 // report protocol version
-#define STATUS_INTERRUPT			0xF5 // interrupt current event (ex: to go realtime)
+#define STATUS_INTERRUPT			0xF5 // interrupt current event (ex: signal error)
 #define STATUS_ENCODING_SWITCH		0xF6 //
 #define STATUS_SYSEX_END			0xF7 // end a MIDI Sysex message
 #define STATUS_EMERGENCY_STOP1		0xF8 // stop activity on pin group 1
@@ -71,10 +85,8 @@ extern "C" {
 
 // 0xxxxxxx: extended command set using data bytes (0-127/0x00-0x7F)
 // 0x00-0x19: DATA
-#define SYSEX_DIGITAL_PIN_DATA		0x00 // ability to send the value to any pin,
-										// as well as supports sending analog values with any number of bits.
-#define SYSEX_ANALOG_PIN_DATA		0x01 // ability to specify the analog reference source
-										// as well as the analog read and write resolution.
+#define SYSEX_DIGITAL_PIN_DATA		0x00 // send any value to any pin
+#define SYSEX_ANALOG_PIN_DATA		0x01 // send and specify the analog reference source and R/W resolution
 #define SYSEX_SCHEDULER_DATA		0x02 // scheduler request (see related sub commands)
 #define SYSEX_ONEWIRE_DATA			0x03 // 1WIRE communication (see related sub commands)
 #define SYSEX_UART_DATA				0x04 // UART communication (see related sub commands)
@@ -84,7 +96,7 @@ extern "C" {
 // 0x20-0x29: REPORT
 #define SYSEX_DIGITAL_PIN_REPORT	0x20 // report of ANY digital input pins
 #define SYSEX_ANALOG_PIN_REPORT		0x21 // report of ANY analog input pins
-#define SYSEX_VERSION_REPORT		0x22 // report name and version of the firmware
+#define SYSEX_VERSION_REPORT		0x22 // report firmware's version details (name, libs version, ...)
 #define SYSEX_FEATURES_REPORT		0x23 // report features supported by the firmware
 // 0x30-0x49: REQUEST/REPLY
 #define SYSEX_PINCAPS_REQ			0x30 // ask for supported modes and resolution of all pins
@@ -109,18 +121,26 @@ extern "C" {
 // Analog data sub (0x00-0x7F)
 #define SYSEX_SUB_ANALOG_DATA_	0
 
-// Scheduler data sub (0x00-0x7F)
-#define SYSEX_SUB_SCHED_CREATE				0
-#define SYSEX_SUB_SCHED_DELETE				1
-#define SYSEX_SUB_SCHED_ADD					2
-#define SYSEX_SUB_SCHED_DELAY				3
-#define SYSEX_SUB_SCHED_SCHEDULE			4
-#define SYSEX_SUB_SCHED_QUERY_ALL			5
-#define SYSEX_SUB_SCHED_QUERY_TASK			6
-#define SYSEX_SUB_SCHED_REPLY_QUERY_ALL		7
-#define SYSEX_SUB_SCHED_REPLY_QUERY_TASK	8
-#define SYSEX_SUB_SCHED_REPLY_ERROR			9
-#define SYSEX_SUB_SCHED_RESET				127
+/* Scheduler data sub (0x00-0x7F)
+The idea is to store a stream of messages on a microcontroller which is replayed later (either once or repeated).
+A task is created by sending a create_task message.
+The time-to-run is initialized with 0 (which means the task is not yet ready to run).
+After filling up the taskdata with messages (using add_to_task command messages) a final schedule_task request is sent, that sets the time-to-run (in milliseconds after 'now').
+If a task itself contains delay_task or schedule_task-messages these cause the execution of the task to pause and resume after the amount of time given in such message has elapsed.
+If the last message in a task is a delay_task message the task is scheduled for reexecution after the amount of time specified.
+If there's no delay_task message at the end of the task (so the time-to-run is not updated during the run) the task gets deleted after execution.
+*/
+#define SYSEX_SUB_SCHED_CREATE		0
+#define SYSEX_SUB_SCHED_DELETE		1
+#define SYSEX_SUB_SCHED_ADD			2
+#define SYSEX_SUB_SCHED_DELAY		3
+#define SYSEX_SUB_SCHED_SCHEDULE	4
+#define SYSEX_SUB_SCHED_LIST_REQ	5
+#define SYSEX_SUB_SCHED_LIST_REP	6
+#define SYSEX_SUB_SCHED_TASK_REQ	7
+#define SYSEX_SUB_SCHED_TASK_REP	8
+#define SYSEX_SUB_SCHED_ERROR_REP	9
+#define SYSEX_SUB_SCHED_RESET		127
 
 // Onewire data sub (0x00-0x7F)
 #define SYSEX_SUB_ONEWIRE_	0
@@ -137,22 +157,23 @@ extern "C" {
 // string data sub (0x00-0x7F)
 #define SYSEX_SUB_STRING_	0
 
-// Realtime control signals
-#define REALTIME_SIG_SYN			1 // start of synchronous operation
-#define REALTIME_SIG_ACK			2 // confirm
-#define REALTIME_SIG_NACK			3 // problem
-#define REALTIME_SIG_FIN			4 // end of synchronous operation
-#define REALTIME_SIG_RST			5 // reset session
-
-#define num7BitOutbytes(a)(((a)*7)>>3)
-
 #include <protocol_custom.h>
 #include <stdbool.h>
 
+	typedef struct task_s {
+		uint8_t id; // only 7bits used -> supports 127 tasks
+		long ms; // ms to task
+		int len;
+		int pos;
+		uint8_t *messages;
+		struct task_s *next;
+	} task_t;
+
 	// callback function types
 	typedef void (*cbf_varg_t)(const char *format, ...);
+	typedef void (*cbf_data_t)(uint8_t argc, uint8_t *argv);
 	typedef uint8_t (*cbf_eval_t)(uint8_t count);
-	typedef void (*cbf_coder_t)(uint8_t *data, uint8_t count, uint8_t *result);
+	typedef void (*cbf_coder_t)(uint8_t *input, uint8_t count, uint8_t *output);
 
 	// callback functions
 	extern cbf_varg_t printString;
@@ -161,33 +182,27 @@ extern "C" {
 	extern cbf_coder_t cbEncoder;
 	extern cbf_eval_t cbEvalDec;
 	extern cbf_coder_t cbDecoder;
+	extern cbf_data_t runEvent;
 
+	// events
 	extern uint16_t deltaTime; // ticks since last complete event
-	extern uint8_t eventBuffer[PROTOCOL_MAX_DATA]; // current event in transit
-	extern uint8_t eventSize; // current event size
-
-	// each byte become 2*byte to transmit (ie: bandwidth intensive)
-	uint8_t evalEncode(uint8_t count);
-	uint8_t evalDecode(uint8_t count);
-	void encode7bit(uint8_t *data, uint8_t count, uint8_t *result);
-	void decode7bit(uint8_t *data, uint8_t count, uint8_t *result);
-	// shift bits to reduce the amount of bytes to transmit (ie: CPU intensive)
-	uint8_t evalEncodeCompat(uint8_t count);
-	uint8_t evalDecodeCompat(uint8_t count);
-	void encode7bitCompat(uint8_t *data, uint8_t count, uint8_t *result);
-	void decode7bitCompat(uint8_t *data, uint8_t count, uint8_t *result);
+	// tasks
+	extern task_t *tasks;
+	extern task_t *running;
 
 	// reset receive buffer
-	void resetBuffer(void);
-	// copy the event in buffer, returns the size of the event in buffer
-	uint8_t bufferCopy(uint8_t *event);
-	// print event in buffer (or given event)
-	void printEvent(uint8_t count, uint8_t *event);
+	void bufferReset(void);
 
-	// receive 1 byte
-	// return 0 for uncomplete messages,
-	// return the number of stored bytes, if the event in buffer is complete (ie: ready to parse/store/print)
-	uint8_t decodeEvent(uint8_t byte);
+	// copy buffer to event, returns the event size
+	uint8_t bufferCopy(uint8_t *event);
+
+	//
+	uint8_t encodingSwitch(uint8_t proto);
+
+	// receive 1 byte in default buffer (or given buffer)
+	// - uncomplete event: returns 0,
+	// - complete event: returns the number of stored bytes
+	uint8_t decodeEvent(uint8_t *byte, uint8_t size, uint8_t *event);
 
 	// prepare data for sending and write it at &event:
 	//		- for simple events argc=byte1 and argv=&byteN
@@ -195,7 +210,14 @@ extern "C" {
 	// returns the event's number of bytes (to be eventually sent)
 	uint8_t encodeEvent(uint8_t cmd, uint8_t argc, uint8_t *argv, uint8_t *event);
 
+	// print event in buffer (or given event)
+	void printEvent(uint8_t count, uint8_t *event);
 
+	// encode subs (task, ...)
+	uint8_t encodeTask(task_t *task, bool error, uint8_t *event);
+
+	// run scheduled tasks (if any), at the right time
+	void runScheduler(uint16_t now);
 
 #ifdef __cplusplus
 }

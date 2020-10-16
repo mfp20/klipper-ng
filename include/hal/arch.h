@@ -169,8 +169,8 @@ extern "C" {
 					ports[i].end(&ports[i]);
 				}
 			}
-		if (ports != NULL) free(ports);
-		ports = (commport_t *)malloc(sizeof(commport_t));
+		//if (ports != NULL) free(ports);
+		ports = (commport_t *)realloc(ports, sizeof(commport_t));
 		ports_no = 0;
 		console = NULL;
 		//printf("commports_reset() OK\n");

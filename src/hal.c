@@ -19,7 +19,7 @@ void halInit(void) {
 	switch(ports[0].type) {
 		case COMMPORT_TYPE_1WIRE:
 			last = max(PIN_1WIRE, PIN_LED);
-			pin_status = (pin_status_t *)malloc(sizeof(pin_status_t)*last);
+			pin_status = (pin_status_t *)calloc(last+1, sizeof(pin_status_t));
 			pin_status_size = last;
 			for(uint8_t i=1;i<=pin_status_size;i++) {
 				pin_status[i].mode = 0;
@@ -32,7 +32,7 @@ void halInit(void) {
 		case COMMPORT_TYPE_UART:
 			last = max(PIN_UART0_RX, PIN_UART0_TX);
 			last = max(last, PIN_LED);
-			pin_status = (pin_status_t *)malloc(sizeof(pin_status_t)*last);
+			pin_status = (pin_status_t *)calloc(last+1, sizeof(pin_status_t));
 			pin_status_size = last;
 			for(uint8_t i=1;i<=pin_status_size;i++) {
 				pin_status[i].mode = 0;
@@ -46,7 +46,7 @@ void halInit(void) {
 		case COMMPORT_TYPE_I2C:
 			last = max(PIN_SDA, PIN_SCL);
 			last = max(last, PIN_LED);
-			pin_status = (pin_status_t *)malloc(sizeof(pin_status_t)*last);
+			pin_status = (pin_status_t *)calloc(last+1, sizeof(pin_status_t));
 			pin_status_size = last;
 			for(uint8_t i=1;i<=pin_status_size;i++) {
 				pin_status[i].mode = 0;
@@ -62,7 +62,7 @@ void halInit(void) {
 			last = max(last, PIN_MISO);
 			last = max(last, PIN_SCK);
 			last = max(last, PIN_LED);
-			pin_status = (pin_status_t *)malloc(sizeof(pin_status_t)*last);
+			pin_status = (pin_status_t *)calloc(last+1, sizeof(pin_status_t));
 			pin_status_size = last;
 			for(uint8_t i=1;i<=pin_status_size;i++) {
 				pin_status[i].mode = 0;

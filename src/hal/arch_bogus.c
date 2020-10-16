@@ -218,7 +218,7 @@ void pin_pulse_single(uint8_t pin, uint16_t width) {
 volatile pin_frame_t* pin_pulse_multi(uint16_t milli) {
 	if (pulsing.head) {
 		if (milli > pulsing.tail->milli) {
-			pulsing.tail->next = (volatile pin_frame_t*)malloc(sizeof(pin_frame_t));
+			pulsing.tail->next = (volatile pin_frame_t*)calloc(1,sizeof(pin_frame_t));
 			pulsing.tail->next->next = NULL;
 			pulsing.tail = pulsing.tail->next;
 			return pulsing.tail->next;
@@ -227,7 +227,7 @@ volatile pin_frame_t* pin_pulse_multi(uint16_t milli) {
 			return pulsing.tail->next;
 		}
 	} else {
-		pulsing.head = (volatile pin_frame_t*)malloc(sizeof(pin_frame_t));
+		pulsing.head = (volatile pin_frame_t*)calloc(1,sizeof(pin_frame_t));
 		pulsing.head->next = NULL;
 		pulsing.tail = pulsing.head;
 		return pulsing.tail;
@@ -236,13 +236,13 @@ volatile pin_frame_t* pin_pulse_multi(uint16_t milli) {
 
 
 // COMMS -----------------------------------------------------------------------------------
-commport_t *ports = NULL;
+commport_t *ports = (commport_t *)calloc(1, sizeof(commport_t));
 uint8_t ports_no = 0;
 commport_t *console = NULL;
 
 commport_t* commport_register(uint8_t type, uint8_t no) {
 	// allocate ports array
-	ports = (commport_t *)realloc(ports, sizeof(commport_t)*COMMPORT_QTY);
+	ports = (commport_t *)realloc(ports, sizeof(commport_t)*(ports_no+1));
 	// assign metods
 	ports[ports_no].type = type;
 	ports[ports_no].no = no;
