@@ -1,14 +1,3 @@
-#ifndef LIBKNP_H
-#define LIBKNP_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <hal.h>
-#include <protocol.h>
-
-#define TICKRATE 1000
 
 //
 // DEVICE CODE
@@ -147,10 +136,4 @@ extern "C" {
 	extern cbf_void_t cbSchedQueryList;
 	extern cbf_short_t cbSchedQueryTask;
 	extern cbf_void_t cbSchedReset;
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
 

@@ -18,13 +18,21 @@ Sysex have virtually unlimited bytes of data.
 After 'sysex start' (0xF0):
 
 			sysex = [mod_byte][sysex_byte][data][0xF7]
+				sysex = [0x70][extended_sysex_byte][data][0xF7]
+				sysex = [0x7E][sysex_byte][data][0xF7]
+				sysex = [0x7F][sysex_byte][data][0xF7] (after sending it will wait for reply)
 
 				mod_byte = 0x70-0x7F
-					0x70: extended sysex, plus 1 byte to define the extension
+					0x70: extended sysex (ie: next byte won't be one of the protocol defined sysex'es)
 					0x7E: do not require an immediate response from the receiving device.
 					0x7F: prompt device to respond and to do so in real time.
 
 				sysex_byte = 0x00-0x6F
+
+Example common event:
+			[0xFF][0x00][0x00][0xFF][0xFF][0xFF] (zero delay from previous message, reset system)
+Example sysex event:
+			[0xFF][0x00][0x01][0xF0][0x7E][0x07][0x01][0xF7] (1 tick after previous message, send string "1")
 */
 
 #ifdef __cplusplus
@@ -39,7 +47,7 @@ extern "C" {
 #define PROTOCOL_VERSION_MINOR  0 // for backwards compatible changes
 
 // max number of data bytes in incoming messages
-#define PROTOCOL_MAX_DATA   56
+#define PROTOCOL_MAX_EVENT_BYTES   64
 #define PROTOCOL_TICK_BYTES	2 // the number of bytes to describe delta time
 
 #define PROTOCOL_ENCODING_REPORT	0
@@ -55,7 +63,7 @@ extern "C" {
 #define REALTIME_SIG_FIN			4 // end of synchronous operation
 #define REALTIME_SIG_RST			5 // reset session
 
-// 1xxxxxxx:	status byte using control bytes (128-255/0x80-0xFF)
+// 1xxxxxxx:	status byte using control messages (128-255/0x80-0xFF)
 //					0x80-0xEF: action message, specific to a port/pin and directly affect input/output
 //					0xF0-0xF7: common message, do not require an immediate response from the receiving
 //					0xF8-0xFF: realtime message, prompt device to respond and to do so in real time.
@@ -83,8 +91,8 @@ extern "C" {
 #define STATUS_SYSTEM_HALT			0xFE // system halt
 #define STATUS_SYSTEM_RESET			0xFF // MIDI system reset
 
-// 0xxxxxxx: extended command set using data bytes (0-127/0x00-0x7F)
-// 0x00-0x19: DATA
+// 0xxxxxxx: sysex using data messages (0-127/0x00-0x7F)
+// 0x00-0x1F: DATA
 #define SYSEX_DIGITAL_PIN_DATA		0x00 // send any value to any pin
 #define SYSEX_ANALOG_PIN_DATA		0x01 // send and specify the analog reference source and R/W resolution
 #define SYSEX_SCHEDULER_DATA		0x02 // scheduler request (see related sub commands)
@@ -93,23 +101,23 @@ extern "C" {
 #define SYSEX_I2C_DATA				0x05 // I2C communication (see related sub commands)
 #define SYSEX_SPI_DATA				0x06 // SPI communication (see related sub commands)
 #define SYSEX_STRING_DATA			0x07 // encoded string (see related sub commands)
-// 0x20-0x29: REPORT
+// 0x20-0x3F: REPORT
 #define SYSEX_DIGITAL_PIN_REPORT	0x20 // report of ANY digital input pins
 #define SYSEX_ANALOG_PIN_REPORT		0x21 // report of ANY analog input pins
 #define SYSEX_VERSION_REPORT		0x22 // report firmware's version details (name, libs version, ...)
 #define SYSEX_FEATURES_REPORT		0x23 // report features supported by the firmware
-// 0x30-0x49: REQUEST/REPLY
-#define SYSEX_PINCAPS_REQ			0x30 // ask for supported modes and resolution of all pins
-#define SYSEX_PINCAPS_REP			0x31 // reply with supported modes and resolution
-#define SYSEX_PINMAP_REQ			0x32 // ask for mapping of analog to pin numbers
-#define SYSEX_PINMAP_REP			0x33 // reply with mapping info
-#define SYSEX_PINSTATE_REQ			0x34 // ask for a pin's current mode and value
-#define SYSEX_PINSTATE_REP			0x35 // reply with pin's current mode and value
-#define SYSEX_DEVICE_REQ			0x36 // PROPOSED: Generic Device Driver RPC
-#define SYSEX_DEVICE_REP			0x37 // PROPOSED: Generic Device Driver RPC
-#define SYSEX_RCSWITCH_IN			0x38 // PROPOSED: bridge to RCSwitch Arduino library
-#define SYSEX_RCSWITCH_OUT			0x39 // PROPOSED: bridge to RCSwitch Arduino library
-// 0x50-0x6F reserved for user-defined commands
+// 0x40-0x5F: REQUEST/REPLY
+#define SYSEX_PINCAPS_REQ			0x40 // ask for supported modes and resolution of all pins
+#define SYSEX_PINCAPS_REP			0x41 // reply with supported modes and resolution
+#define SYSEX_PINMAP_REQ			0x42 // ask for mapping of analog to pin numbers
+#define SYSEX_PINMAP_REP			0x43 // reply with mapping info
+#define SYSEX_PINSTATE_REQ			0x44 // ask for a pin's current mode and value
+#define SYSEX_PINSTATE_REP			0x45 // reply with pin's current mode and value
+#define SYSEX_DEVICE_REQ			0x46 // PROPOSED: Generic Device Driver RPC
+#define SYSEX_DEVICE_REP			0x47 // PROPOSED: Generic Device Driver RPC
+#define SYSEX_RCSWITCH_IN			0x48 // PROPOSED: bridge to RCSwitch Arduino library
+#define SYSEX_RCSWITCH_OUT			0x49 // PROPOSED: bridge to RCSwitch Arduino library
+// 0x60-0x6F reserved for user-defined commands
 // 0x70-0x7F sysex modifier
 #define SYSEX_MOD_EXTEND			0x70 // sysex extension, the next 2 bytes define the extended ID
 #define SYSEX_MOD_NON_REALTIME		0x7E // MIDI Reserved for non-realtime messages

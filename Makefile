@@ -56,6 +56,7 @@ STRIP = $(CROSS_COMPILE)strip
 # files
 DIR_BUILD = ./build
 DIR_OBJ	:= $(DIR_BUILD)/objs
+DIR_PY := $(DIR_BUILD)/py
 DIR_APP	:= $(DIR_BUILD)/bin
 INCLUDE	:= -Iinclude/
 SRCS_UTIL	:= \
@@ -79,16 +80,16 @@ OBJS_FW		:= $(SRCS_FW:%.cpp=$(DIR_OBJ)/%.o)
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o) $(SRCS_HOST:%.cpp=$(DIR_OBJ)/%.o)
 
 # flags
-CFLAGS  = $(INCLUDE) -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__
+CFLAGS  = $(INCLUDE) -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ -fPIC
 CXXFLAGS = $(CFLAGS) -std=gnu++17
 LDFLAGS = -L$(DIR_BUILD) -L$(DIR_OBJ) -L$(DIR_APP) -pthread -lstdc++ -lutil -lm -lrt
 
 # targets
-TARGET_HAL	:= $(DIR_BUILD)/libhal.$(BOARD).a
-TARGET_PROTO	:= $(DIR_BUILD)/libproto.$(BOARD).a
-TARGET_LIB	:= $(DIR_BUILD)/libknp.$(BOARD).a
+TARGET_HAL	:= $(DIR_OBJ)/libhal.$(BOARD).a
+TARGET_PROTO	:= $(DIR_OBJ)/libproto.$(BOARD).a
+TARGET_LIB	:= $(DIR_OBJ)/libknp.$(BOARD).a
 TARGET_FW	:= $(DIR_APP)/klipper-ng.$(BOARD).bin
-TARGET_HOST	:= $(DIR_APP)/klipper-ng.elf
+TARGET_HOST	:= $(DIR_APP)/klippy-ng.elf
 
 help:
 	@echo "make all"
@@ -158,9 +159,11 @@ $(TARGET_HOST): $(OBJS_HOST)
 build:
 	@mkdir -p $(DIR_APP)
 	@mkdir -p $(DIR_OBJ)
+	@mkdir -p $(DIR_PY)
 
 python:
-	python3 pyknp.py build_ext -t$(DIR_OBJ) -b$(DIR_BUILD) $(INCLUDE) -L$(DIR_BUILD) -l:libknp.$(BOARD).a --define=__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__,__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ 
+	@cp include/libknpy.h $(DIR_PY)
+	@python Makefile.py
 
 compiledb:
 	@$(shell compiledb -n make lib)

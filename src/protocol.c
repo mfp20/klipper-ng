@@ -13,7 +13,7 @@ cbf_data_t runEvent = NULL;
 
 // message handling
 static uint8_t waitForData = 0;
-static uint8_t eventBuffer[PROTOCOL_MAX_DATA]; // current event in transit
+static uint8_t eventBuffer[PROTOCOL_MAX_EVENT_BYTES]; // current event in transit
 static uint8_t eventSize = 0; // current event size
 uint16_t deltaTime = 0;
 

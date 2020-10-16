@@ -5,7 +5,7 @@ uint16_t mstart = 0;
 uint16_t ustart = 0;
 uint16_t jitter = 0;
 uint8_t txtData, binData, peerData;
-uint8_t encodedEvent[PROTOCOL_MAX_DATA];
+uint8_t encodedEvent[PROTOCOL_MAX_EVENT_BYTES];
 
 //
 // DEVICE CODE

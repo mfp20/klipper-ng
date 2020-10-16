@@ -1,4 +1,5 @@
 *.swp
+*.json
 *.o
 *.a
 *.so
@@ -7,6 +8,6 @@ __pycache__/
 _docs/
 _old/
 _utils/
+_venv/
 .clangd/
-compile_commands.json
 
