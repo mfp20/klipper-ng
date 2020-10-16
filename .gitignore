@@ -4,6 +4,7 @@
 *.a
 *.so
 *.bin
+build/
 __pycache__/
 _docs/
 _old/
