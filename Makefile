@@ -172,10 +172,10 @@ py:
 compiledb:
 	@$(shell compiledb -n make lib)
 
-debug: CXXFLAGS += -pedantic-errors -Wall -Werror -Wextra -DDEBUG -g
+debug: CFLAGS += -pedantic-errors -Wall -Werror -Wextra -DDEBUG -g
 debug: all
 
-release: CXXFLAGS += -O2
+release: CFLAGS += -O2
 release: all
 
 clean:

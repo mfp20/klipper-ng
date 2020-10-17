@@ -22,11 +22,11 @@ struct commport_s {
 	uint8_t no;
 	uint8_t fd;
 	uint32_t baud;
-	int (*begin)(commport_t *port, uint32_t baud);
+	uint8_t (*begin)(commport_t *port, uint32_t baud);
 	uint8_t (*available)(commport_t *port);
-	int (*read)(commport_t *port, uint8_t *data, uint8_t count, uint16_t timeout);
-	int (*write)(commport_t *port, uint8_t *data, uint8_t count, uint16_t timeout);
-	int (*end)(commport_t *port);
+	uint8_t (*read)(commport_t *port, uint8_t *data, uint8_t count, uint16_t timeout);
+	uint8_t (*write)(commport_t *port, uint8_t *data, uint8_t count, uint16_t timeout);
+	uint8_t (*end)(commport_t *port);
 };
 
 
