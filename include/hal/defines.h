@@ -29,6 +29,7 @@
 //#define TX_BUFFER_SIZE			64 // 1,2,4,8,16,32,64,128 or 256 bytes
 
 #elif defined(__FIRMWARE_ARCH_X86__)
+#define TOTAL_PINS              0
 
 #elif defined(__FIRMWARE_ARCH_ATMEGA168__) || defined(__FIRMWARE_ARCH_ATMEGA328__) || defined(__FIRMWARE_ARCH_ATMEGA328P__)
 
@@ -51,7 +52,19 @@
 // BOARDs
 //
 
-#if defined(__FIRMWARE_BOARD_SIMULINUX__)
+#if defined(__FIRMWARE_BOARD_HOSTLINUX__)
+#define PIN_1WIRE		1
+#define PIN_UART0_RX	2
+#define PIN_UART0_TX	3
+#define PIN_SDA			4
+#define PIN_SCL			5
+#define PIN_SS			6
+#define PIN_MOSI		7
+#define PIN_MISO		8
+#define PIN_SCK			9
+#define PIN_LED			13
+
+#elif defined(__FIRMWARE_BOARD_SIMULINUX__)
 #define PIN_1WIRE		1
 #define PIN_UART0_RX	2
 #define PIN_UART0_TX	3
@@ -81,6 +94,12 @@
 //
 
 //
+#ifndef IS_PIN_DIGITAL
+#define IS_PIN_DIGITAL(p)       (0)
+#endif
+#ifndef IS_PIN_ANALOG
+#define IS_PIN_ANALOG(p)        (0)
+#endif
 #ifndef IS_PIN_INTERRUPT
 #define IS_PIN_INTERRUPT(p) (0)
 #endif

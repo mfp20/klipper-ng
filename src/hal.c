@@ -103,6 +103,39 @@ void freePin(uint8_t pin) {
 	pin_status[pin].vextend = 0;
 }
 
+uint8_t binRecv(uint8_t argc, uint8_t *argv, uint8_t timeout) {
+	if (argc) {
+			return binConsole->read(binConsole, argv, argc, timeout);
+	} else {
+		if (binConsole->available(binConsole)) {
+			return binConsole->read(binConsole, argv, 1, timeout);
+		}
+		return 0;
+	}
+}
+
+uint8_t txtRecv(uint8_t argc, uint8_t *argv, uint8_t timeout) {
+	if (argc) {
+			return txtConsole->read(txtConsole, argv, argc, timeout);
+	} else {
+		if (txtConsole->available(txtConsole)) {
+			return txtConsole->read(txtConsole, argv, 1, timeout);
+		}
+		return 0;
+	}
+}
+
+uint8_t peerRecv(uint8_t argc, uint8_t *argv, uint8_t timeout) {
+		if (argc) {
+			return peering->read(peering, argv, argc, timeout);
+	} else {
+		if (peering->available(peering)) {
+			return peering->read(peering, argv, 1, timeout);
+		}
+		return 0;
+	}
+}
+
 void binSend(uint8_t argc, uint8_t *argv) {
 	binConsole->write(binConsole, argv, argc, 0);
 }

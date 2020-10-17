@@ -7,16 +7,16 @@ ffi = cffi.FFI()
 
 # read header
 this_dir = pathlib.Path().absolute()
-h_file_name = this_dir / "include/libknpy.h"
+h_file_name = this_dir / "build/py/pyknp.h"
 with open(h_file_name) as h_file:
     ffi.cdef(h_file.read())
 
 # configure
 ffi.set_source(
-    'libknpy',
-    '#include "libknpy.h"',
+    'pyknp',
+    '#include "pyknp.h"',
     #extra_compile_args=[],
-    extra_link_args=["-l:../objs/libknp.simulinux.a"],
+    extra_link_args=["-l:../objs/libknp.hostlinux.a"],
 )
 
 # compile

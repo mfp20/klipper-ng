@@ -12,6 +12,10 @@
 # 
 
 BOARD ?= simulinux
+ifeq ($(BOARD),hostlinux)
+	MCU=x86
+	CROSS_COMPILE=
+endif
 ifeq ($(BOARD),simulinux)
 	MCU=bogus
 	CROSS_COMPILE=
@@ -60,10 +64,9 @@ DIR_PY := $(DIR_BUILD)/py
 DIR_APP	:= $(DIR_BUILD)/bin
 INCLUDE	:= -Iinclude/
 SRCS_UTIL	:= \
-	$(wildcard src/utility/*.c)	\
-	$(wildcard src/utility/*.cpp)
+	$(wildcard src/utility/*.c)
 SRCS_HAL	:= \
-	src/hal/arch_$(MCU).c src/hal/board_$(BOARD).c
+	src/hal/arch_common.c src/hal/arch_$(MCU).c src/hal/board_$(BOARD).c
 SRCS_PROTO	:= \
 	src/protocol.c
 SRCS_LIB	:= \
@@ -73,16 +76,15 @@ SRCS_FW		:= \
 SRCS_HOST	:= \
 	$(wildcard src/host/chelper/*.c)
 OBJS_UTIL	:= $(SRCS_UTIL:%.c=$(DIR_OBJ)/%.o)
-OBJS_HAL	:= $(DIR_OBJ)/src/hal/arch.$(BOARD).o $(DIR_OBJ)/src/hal/board.$(BOARD).o $(DIR_OBJ)/src/hal.$(BOARD).o
-OBJS_PROTO	:= $(SRCS_PROTO:%.c=$(DIR_OBJ)/%.o)
+OBJS_HAL	:= $(DIR_OBJ)/src/hal/arch_common.$(BOARD).o $(DIR_OBJ)/src/hal/arch.$(BOARD).o $(DIR_OBJ)/src/hal/board.$(BOARD).o $(DIR_OBJ)/src/hal.$(BOARD).o
+OBJS_PROTO	:= $(SRCS_PROTO:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_LIB	:= $(DIR_OBJ)/src/libknp.$(BOARD).o
-OBJS_FW		:= $(SRCS_FW:%.cpp=$(DIR_OBJ)/%.o)
-OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o) $(SRCS_HOST:%.cpp=$(DIR_OBJ)/%.o)
+OBJS_FW		:= 
+OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o)
 
 # flags
-CFLAGS  = $(INCLUDE) -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ -fPIC
-CXXFLAGS = $(CFLAGS) -std=gnu++17
-LDFLAGS = -L$(DIR_BUILD) -L$(DIR_OBJ) -L$(DIR_APP) -pthread -lstdc++ -lutil -lm -lrt
+CFLAGS  = -fPIC $(INCLUDE) -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ 
+LDFLAGS = -L$(DIR_OBJ) -pthread -lutil -lm -lrt
 
 # targets
 TARGET_HAL	:= $(DIR_OBJ)/libhal.$(BOARD).a
@@ -115,44 +117,40 @@ host: build $(TARGET_HOST)
 
 $(DIR_OBJ)/src/hal/arch.$(BOARD).o: src/hal/arch_$(MCU).c
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
 
 $(DIR_OBJ)/src/hal/board.$(BOARD).o: src/hal/board_$(BOARD).c
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
 
 $(DIR_OBJ)/src/hal.$(BOARD).o: src/hal.c
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
 
-$(DIR_OBJ)/%.o: %.c
+$(DIR_OBJ)/%.$(BOARD).o: %.c
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -c $< -o $(@:%.o=%.$(BOARD).o) $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
 
-$(DIR_OBJ)/%.o: %.cpp
+$(TARGET_HAL): $(OBJS_HAL)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -c $< -o $(@:%.o=%.$(BOARD).o) $(LDFLAGS)
+	$(AR) rcs $(TARGET_HAL) $(OBJS_HAL)
 
-$(TARGET_HAL): $(OBJS_UTIL) $(OBJS_HAL)
+$(TARGET_PROTO): $(OBJS_PROTO) 
 	@mkdir -p $(@D)
-	$(AR) rcs $(TARGET_HAL) $(OBJS_UTIL:%.o=%.$(BOARD).o) $(OBJS_HAL)
-
-$(TARGET_PROTO): $(OBJS_UTIL) $(OBJS_PROTO) 
-	@mkdir -p $(@D)
-	$(AR) rcs $(TARGET_PROTO) $(OBJS_UTIL:%.o=%.$(BOARD).o) $(OBJS_PROTO:%.o=%.$(BOARD).o)
+	$(AR) rcs $(TARGET_PROTO) $(OBJS_PROTO)
 
 $(TARGET_LIB): $(TARGET_HAL) $(TARGET_PROTO)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -c src/libknp.c -o $(DIR_OBJ)/src/libknp.$(BOARD).o $(LDFLAGS)
-	$(AR) rcs $(TARGET_LIB) $(OBJS_UTIL:%.o=%.$(BOARD).o) $(OBJS_HAL) $(OBJS_PROTO:%.o=%.$(BOARD).o) $(OBJS_LIB)
+	$(CC) $(CFLAGS) -c src/libknp.c -o $(DIR_OBJ)/src/libknp.$(BOARD).o $(LDFLAGS)
+	$(AR) rcs $(TARGET_LIB) $(OBJS_HAL) $(OBJS_PROTO) $(OBJS_LIB)
 
 $(TARGET_FW): $(TARGET_LIB)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -o $(TARGET_FW) $(SRCS_FW) $(LDFLAGS) -l:libknp.$(BOARD).a
+	$(CC) $(CFLAGS) -o $(TARGET_FW) $(SRCS_FW) $(LDFLAGS) -l:libknp.$(BOARD).a
 
-$(TARGET_HOST): $(OBJS_HOST)
+$(TARGET_HOST): py $(OBJS_HOST)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -o $(DIR_APP)/$(TARGET_HOST) $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(DIR_APP)/$(TARGET_HOST) $^ $(LDFLAGS)
 
 .PHONY: all build clean debug release
 
@@ -161,8 +159,14 @@ build:
 	@mkdir -p $(DIR_OBJ)
 	@mkdir -p $(DIR_PY)
 
-python:
-	@cp include/libknpy.h $(DIR_PY)
+py:
+	@make BOARD=hostlinux $(DIR_OBJ)/libknp.hostlinux.a
+	@cat include/pyknp_head.h > $(DIR_PY)/pyknp.h
+	@cat include/hal/arch_helpers.h >> $(DIR_PY)/pyknp.h
+	@cat include/protocol_defines.h >> $(DIR_PY)/pyknp.h
+	@cat include/protocol_helpers.h >> $(DIR_PY)/pyknp.h
+	@cat include/protocol_custom.h >> $(DIR_PY)/pyknp.h
+	@cat include/pyknp_tail.h >> $(DIR_PY)/pyknp.h
 	@python Makefile.py
 
 compiledb:
@@ -176,5 +180,6 @@ release: all
 
 clean:
 	-@rm -rvf $(DIR_OBJ)/*
+	-@rm -rvf $(DIR_PY)/*
 	-@rm -rvf $(DIR_APP)/*
 

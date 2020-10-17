@@ -2,15 +2,14 @@
 #ifndef HAL_H
 #define HAL_H
 
-#include <hal/arch.h>
-#include <hal/board.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <inttypes.h> // for uint8_t
 #include <stdio.h> // for size_t
+#include <hal/arch.h>
+#include <hal/board.h>
 
 #define max(a,b) \
 	({ __typeof__ (a) _a = (a); \
@@ -36,6 +35,10 @@ extern "C" {
 
 	void usePin(uint8_t pin, uint8_t mode);
 	void freePin(uint8_t pin);
+
+	uint8_t binRecv(uint8_t argc, uint8_t *argv, uint8_t timeout);
+	uint8_t txtRecv(uint8_t argc, uint8_t *argv, uint8_t timeout);
+	uint8_t peerRecv(uint8_t argc, uint8_t *argv, uint8_t timeout);
 
 	void binSend(uint8_t argc, uint8_t *argv);
 	void txtSend(uint8_t argc, uint8_t *argv);

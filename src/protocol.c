@@ -471,7 +471,7 @@ void printEvent(uint8_t size, uint8_t *event) {
 	}
 }
 
-uint8_t encodeTask(task_t *task, bool error, uint8_t *event) {
+uint8_t encodeTask(task_t *task, uint8_t error, uint8_t *event) {
 	uint8_t tasklen;
 	uint8_t *data;
 	if (error) {

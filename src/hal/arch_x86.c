@@ -354,7 +354,7 @@ uint8_t uart_begin(commport_t *uart, uint32_t baud) {
 uint8_t uart_available(commport_t *uart) {
 	//struct timeval tv;
 	//tv.tv_sec = 0;
-	//tv.tv_usec = 5;
+    //tv.tv_usec = 5;
 	//select(NULL, &uart->fd, NULL, NULL, &tv);
 	int count;
 	ioctl(uart->fd, FIONREAD, &count);

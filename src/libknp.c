@@ -52,7 +52,7 @@ void runDevice(void) {
 	runScheduler(mstart);
 
 	// --- evaluate spare time
-	deltaTime = elapsed(mstart, ustart, micros(), millis());
+	deltaTime = uelapsed(mstart, ustart, micros(), millis());
 	if (deltaTime >= TICKRATE) {
 		jitter = jitter+(deltaTime-TICKRATE);
 		return;
@@ -72,7 +72,7 @@ void runDevice(void) {
 			}
 		}
 		// evaluate elapsed time
-		deltaTime = elapsed(mstart, ustart, micros(), millis());
+		deltaTime = uelapsed(mstart, ustart, micros(), millis());
 	}
 	// evaluate jitter
 	jitter = jitter+(deltaTime-TICKRATE);
@@ -313,13 +313,13 @@ void eventTimestampReport(void) {
 
 void eventCongestionReport(uint8_t lag) {
 	uint8_t evsize = encodeEvent(STATUS_CONGESTION_REPORT, lag, NULL, encodedEvent);
-	binSend(evsize, encodedEvent);
+	binConsole->write(binConsole, encodedEvent, evsize, 0);
 }
 
 void eventVersionReport(void) {
 	uint8_t byte = PROTOCOL_VERSION_MINOR;
 	uint8_t evsize = encodeEvent(STATUS_VERSION_REPORT, PROTOCOL_VERSION_MAJOR, &byte, encodedEvent);
-	binSend(evsize, encodedEvent);
+	binConsole->write(binConsole, encodedEvent, evsize, 0);
 }
 
 void eventInterrupt(void) {
@@ -330,7 +330,7 @@ void eventEncodingSwitch(uint8_t proto) {
 	if (proto==PROTOCOL_ENCODING_REPORT) {
 		proto = encodingSwitch(proto);
 		uint8_t evsize = encodeEvent(STATUS_ENCODING_SWITCH, proto, NULL, encodedEvent);
-		binSend(evsize, encodedEvent);
+		binConsole->write(binConsole, encodedEvent, evsize, 0);
 	} else {
 		encodingSwitch(proto);
 	}
@@ -479,7 +479,7 @@ static task_t *findTask(uint8_t id) {
 
 static void reportTask(task_t *task, bool error) {
 	uint8_t evsize = encodeTask(task, error, encodedEvent);
-	binSend(evsize, encodedEvent);
+	binConsole->write(binConsole, encodedEvent, evsize, 0);
 }
 
 void eventSchedCreate(uint8_t id, uint8_t len) {
