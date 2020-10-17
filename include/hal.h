@@ -11,11 +11,6 @@ extern "C" {
 #include <hal/arch.h>
 #include <hal/board.h>
 
-#define max(a,b) \
-	({ __typeof__ (a) _a = (a); \
-	 __typeof__ (b) _b = (b); \
-	 _a > _b ? _a : _b; })
-
 	// in-use pins status, array index is the pin number
 	typedef struct pin_status_s {
 		volatile uint8_t mode; // refer to protocol for known modes

@@ -161,12 +161,6 @@ build:
 
 py:
 	@make BOARD=hostlinux $(DIR_OBJ)/libknp.hostlinux.a
-	@cat include/pyknp_head.h > $(DIR_PY)/pyknp.h
-	@cat include/hal/arch_helpers.h >> $(DIR_PY)/pyknp.h
-	@cat include/protocol_defines.h >> $(DIR_PY)/pyknp.h
-	@cat include/protocol_helpers.h >> $(DIR_PY)/pyknp.h
-	@cat include/protocol_custom.h >> $(DIR_PY)/pyknp.h
-	@cat include/pyknp_tail.h >> $(DIR_PY)/pyknp.h
 	@python Makefile.py
 
 compiledb:

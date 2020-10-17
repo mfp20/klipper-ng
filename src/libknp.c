@@ -1,17 +1,18 @@
 
 #include <libknp.h>
 
+// time and performance handling
 uint16_t mstart = 0;
 uint16_t ustart = 0;
 uint16_t jitter = 0;
 uint8_t txtData, binData, peerData;
 uint8_t encodedEvent[PROTOCOL_MAX_EVENT_BYTES];
 
-//
-// DEVICE CODE
-//
+// tasks handling
+task_t *tasks = NULL;
+task_t *running = NULL;
 
-void initDevice(void) {
+void init(void) {
 	// init hardware
 	halInit();
 
@@ -19,66 +20,9 @@ void initDevice(void) {
 	printString = logWrite;
 	printErr = errWrite;
 	encodingSwitch(PROTOCOL_ENCODING_NORMAL);
-	runEvent = eventRunDevice;
 }
 
-void runDevice(void) {
-	// --- start
-	ustart = micros();
-	mstart = millis();
-
-	// --- evaluate performance and signal lag
-	if (jitter>=TICKRATE) {
-		eventCongestionReport(jitter/1000);
-		jitter = jitter%1000;
-	}
-
-	// 1. run hardware tasks
-	halRun();
-
-	// 2. receive and run 1 event (arbitrary timeout 1-999 us)
-	if (binConsole->available(binConsole)) {
-		while(1) {
-			binConsole->read(binConsole, &binData, 1, 1);
-			if (decodeEvent(&binData, 0, NULL)) {
-				runEvent(0, NULL);
-				break;
-			}
-			if (mstart!=millis()) break;
-		}
-	}
-
-	// 3. run scheduled tasks
-	runScheduler(mstart);
-
-	// --- evaluate spare time
-	deltaTime = uelapsed(mstart, ustart, micros(), millis());
-	if (deltaTime >= TICKRATE) {
-		jitter = jitter+(deltaTime-TICKRATE);
-		return;
-	}
-
-	// --- spend spare time
-	while(deltaTime<TICKRATE) {
-		// receive and run 1 event (arbitrary timeout 1-999 us)
-		if (binConsole->available(binConsole)) {
-			while(1) {
-				binConsole->read(binConsole, &binData, 1, 1);
-				if (decodeEvent(&binData, 0, NULL)) {
-					runEvent(0, NULL);
-					break;
-				}
-				if (mstart!=millis()) break;
-			}
-		}
-		// evaluate elapsed time
-		deltaTime = uelapsed(mstart, ustart, micros(), millis());
-	}
-	// evaluate jitter
-	jitter = jitter+(deltaTime-TICKRATE);
-}
-
-void eventRunDevice(uint8_t size, uint8_t *event) {
+void runEvent(uint8_t size, uint8_t *event) {
 	uint8_t datalen = 0;
 	// TODO fix event indexes
 	switch(event[0]) {
@@ -273,6 +217,105 @@ void eventRunDevice(uint8_t size, uint8_t *event) {
 		default:
 			break;
 	}
+}
+
+void runScheduler(uint16_t now) {
+	if (tasks) {
+		task_t *current = tasks;
+		task_t *previous = NULL;
+		while (current) {
+			if (current->ms > 0 && current->ms < now) { // TODO handle overflow
+				uint16_t start = current->ms;
+				uint8_t pos = current->pos;
+				uint8_t len = current->len;
+				uint8_t *messages = current->messages;
+				uint8_t reschedule = 0;
+				running = current;
+				while (pos < len) {
+					if (decodeEvent(&messages[pos++], 0, NULL))
+						runEvent(eventSize, eventBuffer);
+					if (start != current->ms) { // return true if task got rescheduled during run.
+						current->pos = ( pos == len ? 0 : pos ); // last message executed? -> start over next time
+						reschedule = 1;
+						break;
+					}
+				}
+				running = NULL;
+				if (reschedule) {
+					previous = current;
+					current = current->next;
+				} else {
+					if (previous) {
+						previous->next = current->next;
+						free(current);
+						current = previous->next;
+					} else {
+						tasks = current->next;
+						free(current);
+						current = tasks;
+					}
+				}
+			} else {
+				current = current->next;
+			}
+		}
+	}
+}
+
+void run(void) {
+	// --- start
+	ustart = micros();
+	mstart = millis();
+
+	// --- evaluate performance and signal lag
+	if (jitter>=TICKRATE) {
+		eventCongestionReport(jitter/1000);
+		jitter = jitter%1000;
+	}
+
+	// 1. run hardware tasks
+	halRun();
+
+	// 2. receive and run 1 event (arbitrary timeout 1-999 us)
+	if (binConsole->available(binConsole)) {
+		while(1) {
+			binConsole->read(binConsole, &binData, 1, 1);
+			if (decodeEvent(&binData, 0, NULL)) {
+				runEvent(0, NULL);
+				break;
+			}
+			if (mstart!=millis()) break;
+		}
+	}
+
+	// 3. run scheduled tasks
+	runScheduler(mstart);
+
+	// --- evaluate spare time
+	deltaTime = uelapsed(mstart, ustart, micros(), millis());
+	if (deltaTime >= TICKRATE) {
+		jitter = jitter+(deltaTime-TICKRATE);
+		return;
+	}
+
+	// --- spend spare time
+	while(deltaTime<TICKRATE) {
+		// receive and run 1 event (arbitrary timeout 1-999 us)
+		if (binConsole->available(binConsole)) {
+			while(1) {
+				binConsole->read(binConsole, &binData, 1, 1);
+				if (decodeEvent(&binData, 0, NULL)) {
+					runEvent(0, NULL);
+					break;
+				}
+				if (mstart!=millis()) break;
+			}
+		}
+		// evaluate elapsed time
+		deltaTime = uelapsed(mstart, ustart, micros(), millis());
+	}
+	// evaluate jitter
+	jitter = jitter+(deltaTime-TICKRATE);
 }
 
 void eventPinMode(uint8_t pin, uint8_t mode) {
@@ -580,275 +623,213 @@ void eventSchedReset(void) {
 	}
 }
 
+
 //
-// HOST code
+// host commands to trigger events on mcu
 //
 
-void initHost(void) {
-	// init hardware
-	halInit();
-
-	// setup protocol callbacks
-	printString = logWrite;
-	printErr = errWrite;
-	encodingSwitch(PROTOCOL_ENCODING_NORMAL);
-	runEvent = eventRunHost;
+void cmdPinMode(uint8_t pin, uint8_t mode) {
+	errWrite("Not Implemented: \n");
 }
 
-void runHost(void) {
-	runDevice();
+void cmdDigitalPortData(uint8_t port, uint8_t value) {
+	errWrite("Not Implemented: \n");
 }
 
-void eventRunHost(uint8_t size, uint8_t *event) {
-	uint8_t datalen = 0;
-	// TODO adjust event indexes to consider deltaTime (ie: +3 offset)
-	switch(event[0]) {
-		case STATUS_PIN_MODE:
-			cbPinMode(event[1], event[2]);
-			break;
-		case STATUS_DIGITAL_PORT_DATA:
-			cbDigitalPortData(event[0] & 0x0F, (event[1] << 7) + event[2]);
-			break;
-		case STATUS_DIGITAL_PIN_DATA:
-			cbDigitalPinData(event[1], event[2]);
-			break;
-		case STATUS_ANALOG_PIN_DATA:
-			cbAnalogPinData(event[0] & 0x0F, (event[1] << 7) + event[2]);
-			break;
-		case STATUS_DIGITAL_PORT_REPORT:
-			break;
-		case STATUS_DIGITAL_PIN_REPORT:
-			cbDigitalPinReport(event[0] & 0x0F, event[1]);
-			break;
-		case STATUS_ANALOG_PIN_REPORT:
-			cbDigitalPinReport(event[0] & 0x0F, event[1]);
-			break;
-		case STATUS_MICROSTAMP_REPORT:
-			cbMicrostampReport();
-			break;
-		case STATUS_TIMESTAMP_REPORT:
-			cbTimestampReport();
-			break;
-		case STATUS_CONGESTION_REPORT:
-			cbCongestionReport(event[12]);
-			break;
-		case STATUS_VERSION_REPORT:
-			cbVersionReport();
-			break;
-		case STATUS_INTERRUPT:
-			cbInterrupt();
-			break;
-		case STATUS_ENCODING_SWITCH:
-			cbEncodingSwitch(event[32]);
-			break;
-		case STATUS_EMERGENCY_STOP1:
-			cbEmergencyStop1();
-			break;
-		case STATUS_EMERGENCY_STOP2:
-			cbEmergencyStop2();
-			break;
-		case STATUS_EMERGENCY_STOP3:
-			cbEmergencyStop3();
-			break;
-		case STATUS_EMERGENCY_STOP4:
-			cbEmergencyStop4();
-			break;
-		case STATUS_SYSTEM_PAUSE:
-			cbSystemPause();
-			break;
-		case STATUS_SYSTEM_RESUME:
-			cbSystemResume();
-			break;
-		case STATUS_SYSTEM_HALT:
-			cbSystemHalt();
-			break;
-		case STATUS_SYSTEM_RESET:
-			cbSystemReset();
-			break;
-		case STATUS_SYSEX_START:
-			switch (event[1]) { // first byte is sysex start, second byte is command
-				case SYSEX_MOD_EXTEND:
-					switch(event[2]+event[3]) { // second byte is SYSEX_EXTEND, third&forth bytes are the extended commands
-						default:
-							errWrite("Not Implemented: %d (SYSEX_EXTEND)\n", event[1]);
-					}
-					break;
-				case SYSEX_DIGITAL_PIN_DATA:
-					cbSysexDigitalPinData();
-					break;
-				case SYSEX_ANALOG_PIN_DATA:
-					cbSysexAnalogPinData();
-					break;
-				case SYSEX_SCHEDULER_DATA:
-					if (size > 0) {
-						switch (event[0]) {
-							case SYSEX_SUB_SCHED_CREATE:
-								if (size == 4) {
-									cbSchedCreate(event[1], event[2] | event[3] << 7);
-								}
-								break;
-							case SYSEX_SUB_SCHED_ADD:
-								if (size > 2) {
-									cbSchedAdd(event[1], size - 2, event[2]); // addToTask copies data...
-								}
-								break;
-							case SYSEX_SUB_SCHED_DELAY:
-								if (size == 6) {
-									//event++; compiler error after moving the sysex switch
-									cbSchedDelay(*(long*)((uint8_t*)event));
-								}
-								break;
-							case SYSEX_SUB_SCHED_SCHEDULE:
-								if (size == 7) { // one byte taskid, 5 bytes to encode 4 bytes of long
-									cbSchedSchedule(event[1], *(long*)((uint8_t*)event + 2)); // event[1] | event[2]<<8 | event[3]<<16 | event[4]<<24
-								}
-								break;
-							case SYSEX_SUB_SCHED_LIST_REQ:
-								cbSchedQueryList();
-								break;
-							case SYSEX_SUB_SCHED_TASK_REQ:
-								if (size == 2) {
-									cbSchedQueryTask(event[1]);
-								}
-								break;
-							case SYSEX_SUB_SCHED_DELETE:
-								if (size == 2) {
-									cbSchedDelete(event[1]);
-								}
-								break;
-							case SYSEX_SUB_SCHED_RESET:
-								cbSchedReset();
-						}
-					}
-					break;
-				case SYSEX_ONEWIRE_DATA:
-					cbSysexOneWireData();
-					break;
-				case SYSEX_UART_DATA:
-					cbSysexUartData();
-					break;
-				case SYSEX_I2C_DATA:
-					cbSysexI2CData();
-					break;
-				case SYSEX_SPI_DATA:
-					cbSysexSPIData();
-					break;
-				case SYSEX_STRING_DATA:
-					// The string length will only be at most half the size of the
-					// stored input buffer so we can decode the string within the buffer.
-					datalen = (size-1)/2;
-					cbDecoder(event, datalen, event);
-					// Make sure string is null terminated. This may be the case for data
-					// coming from client libraries in languages that don't null terminate
-					// strings.
-					if (event[datalen-1]!='\0') event[datalen] = '\0';
-					logWrite((char *)event);
-					break;
-				case SYSEX_DIGITAL_PIN_REPORT:
-					cbSysexDigitalPinReport();
-					break;
-				case SYSEX_ANALOG_PIN_REPORT:
-					cbSysexAnalogPinReport();
-					break;
-				case SYSEX_VERSION_REPORT:
-					cbSysexVersionReport();
-					break;
-				case SYSEX_FEATURES_REPORT:
-					cbSysexFeaturesReport();
-					break;
-				case SYSEX_PINCAPS_REQ:
-					cbSysexPinCapsReq();
-					break;
-				case SYSEX_PINCAPS_REP:
-					cbSysexPinCapsRep();
-					break;
-				case SYSEX_PINMAP_REQ:
-					cbSysexPinMapReq();
-					break;
-				case SYSEX_PINMAP_REP:
-					cbSysexPinMapRep();
-					break;
-				case SYSEX_PINSTATE_REQ:
-					cbSysexPinStateReq();
-					break;
-				case SYSEX_PINSTATE_REP:
-					cbSysexPinStateRep();
-					break;
-				case SYSEX_DEVICE_REQ:
-					cbSysexDeviceReq();
-					break;
-				case SYSEX_DEVICE_REP:
-					cbSysexDeviceRep();
-					break;
-				case SYSEX_RCSWITCH_IN:
-					cbSysexRCSwitchIn();
-					break;
-				case SYSEX_RCSWITCH_OUT:
-					cbSysexRCSwitchOut();
-					break;
-				default:
-					errWrite("Not Implemented: %d (Unknown command)\n", event[1]);
-					break;
-			}
-			break;
-		default:
-			break;
-	}
+void cmdDigitalPinData(uint8_t pin, uint8_t value) {
+	errWrite("Not Implemented: \n");
 }
 
-cbf_ss_t cbPinMode = NULL;
-cbf_ss_t cbDigitalPortData = NULL;
-cbf_ss_t cbDigitalPinData = NULL;
-cbf_ss_t cbAnalogPinData = NULL;
-cbf_ss_t cbDigitalPortReport = NULL;
-cbf_ss_t cbDigitalPinReport = NULL;
-cbf_ss_t cbAnalogPinReport = NULL;
-cbf_void_t cbMicrostampReport = NULL;
-cbf_void_t cbTimestampReport = NULL;
-cbf_short_t cbCongestionReport = NULL;
-cbf_void_t cbVersionReport = NULL;
-cbf_void_t cbInterrupt = NULL;
-cbf_short_t cbEncodingSwitch = NULL;
-cbf_void_t cbEmergencyStop1 = NULL;
-cbf_void_t cbEmergencyStop2 = NULL;
-cbf_void_t cbEmergencyStop3 = NULL;
-cbf_void_t cbEmergencyStop4 = NULL;
-cbf_void_t cbSystemPause = NULL;
-cbf_void_t cbSystemResume = NULL;
-cbf_void_t cbSystemHalt = NULL;
-cbf_void_t cbSystemReset = NULL;
+void cmdAnalogPinData(uint8_t pin, uint8_t value) {
+	errWrite("Not Implemented: \n");
+}
 
-// sysex events
-cbf_void_t cbSysexDigitalPinData = NULL;
-cbf_void_t cbSysexAnalogPinData = NULL;
-cbf_void_t cbSysexSchedulerData = NULL;
-cbf_void_t cbSysexOneWireData = NULL;
-cbf_void_t cbSysexUartData = NULL;
-cbf_void_t cbSysexI2CData = NULL;
-cbf_void_t cbSysexSPIData = NULL;
-cbf_void_t cbSysexStringData = NULL;
-cbf_void_t cbSysexDigitalPinReport = NULL;
-cbf_void_t cbSysexAnalogPinReport = NULL;
-cbf_void_t cbSysexVersionReport = NULL;
-cbf_void_t cbSysexFeaturesReport = NULL;
-cbf_void_t cbSysexPinCapsReq = NULL;
-cbf_void_t cbSysexPinCapsRep = NULL;
-cbf_void_t cbSysexPinMapReq = NULL;
-cbf_void_t cbSysexPinMapRep = NULL;
-cbf_void_t cbSysexPinStateReq = NULL;
-cbf_void_t cbSysexPinStateRep = NULL;
-cbf_void_t cbSysexDeviceReq = NULL;
-cbf_void_t cbSysexDeviceRep = NULL;
-cbf_void_t cbSysexRCSwitchIn = NULL;
-cbf_void_t cbSysexRCSwitchOut = NULL;
+void cmdDigitalPortReport(uint8_t port, uint8_t value) {
+	errWrite("Not Implemented: \n");
+}
 
-// sysex sub: scheduler events
-cbf_ss_t cbSchedCreate = NULL;
-cbf_short_t cbSchedDelete = NULL;
-cbf_sss_t cbSchedAdd = NULL;
-cbf_sl_t cbSchedSchedule = NULL;
-cbf_long_t cbSchedDelay = NULL;
-cbf_void_t cbSchedQueryList = NULL;
-cbf_short_t cbSchedQueryTask = NULL;
-cbf_void_t cbSchedReset = NULL;
+void cmdDigitalPinReport(uint8_t port, uint8_t value) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdAnalogPinReport(uint8_t pin, uint8_t value) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdMicrostampReport(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdTimestampReport(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdCongestionReport(uint8_t lag) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdVersionReport(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdInterrupt(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdEncodingSwitch(uint8_t proto) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdEmergencyStop1(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdEmergencyStop2(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdEmergencyStop3(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdEmergencyStop4(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSystemPause(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSystemResume(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSystemHalt(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSystemReset(void) {
+	errWrite("Not Implemented: \n");
+}
+
+
+void cmdSysexDigitalPinData(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexAnalogPinData(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexSchedulerData(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexOneWireData(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexUartData(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexI2CData(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexSPIData(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexStringData(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexDigitalPinReport(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexAnalogPinReport(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexVersionReport(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexFeaturesReport(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexPinCapsReq(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexPinCapsRep(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexPinMapReq(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexPinMapRep(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexPinStateReq(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexPinStateRep(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexDeviceReq(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexDeviceRep(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexRCSwitchIn(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSysexRCSwitchOut(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSchedCreate(uint8_t id, uint8_t len) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSchedDelete(uint8_t id) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSchedAdd(uint8_t id, uint8_t additionalBytes, uint8_t *message) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSchedSchedule(uint8_t id, uint16_t delay) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSchedDelay(uint16_t delay) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSchedQueryList(void) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSchedQueryTask(uint8_t id) {
+	errWrite("Not Implemented: \n");
+}
+
+void cmdSchedReset(void) {
+	errWrite("Not Implemented: \n");
+}
 

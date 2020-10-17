@@ -8,6 +8,11 @@ commport_t *binConsole; // serial channel for binary control messages
 commport_t *txtConsole; // serial channel for text messages and user interactive console
 commport_t *peering; // serial channel for p2p messages with other MCUs (ex: sync)
 
+#define max(a,b) \
+	({ __typeof__ (a) _a = (a); \
+	 __typeof__ (b) _b = (b); \
+	 _a > _b ? _a : _b; })
+
 void halInit(void) {
 	arch_init();
 	board_init();

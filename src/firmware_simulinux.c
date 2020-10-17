@@ -11,7 +11,7 @@ int main(int argc, const char *argv[]) {
 	printf("\n");
 
 	// init libknp
-	initDevice();
+	init();
 
 	// loop run libknp
 	uint16_t last = 0, counter = 0;
@@ -25,7 +25,7 @@ int main(int argc, const char *argv[]) {
 				printf("TICK %d\n", last);
 			}
 		}
-		runDevice();
+		run();
 	}
 }
 

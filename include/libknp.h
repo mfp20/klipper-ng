@@ -10,13 +10,17 @@ extern "C" {
 
 #define TICKRATE 1000
 
-//
-// DEVICE CODE
-//
+// tasks
+extern task_t *tasks;
+extern task_t *running;
 
-	void initDevice(void);
-	void runDevice(void);
-	void eventRunDevice(uint8_t size, uint8_t *event);
+	void init(void);
+	// run 1 event
+	void runEvent(uint8_t size, uint8_t *event);
+	// run scheduled tasks (if any), at the right time
+	void runScheduler(uint16_t now);
+	// run 1 tick
+	void run(void);
 
 	// simple events
 	void eventPinMode(uint8_t pin, uint8_t mode);
@@ -75,78 +79,66 @@ extern "C" {
 	void eventSchedQueryTask(uint8_t id);
 	void eventSchedReset(void);
 
-//
-// HOST code
-//
+	//
+	// host commands to trigger events on mcu
+	//
 
-	void initHost(void);
-	void runHost(void);
-	void eventRunHost(uint8_t size, uint8_t *event);
-
-	// typedefs for callbacks
-	typedef void (*cbf_void_t)(void);
-	typedef void (*cbf_short_t)(uint8_t);
-	typedef void (*cbf_long_t)(uint16_t);
-	typedef void (*cbf_ss_t)(uint8_t,uint8_t);
-	typedef void (*cbf_sl_t)(uint8_t,uint16_t);
-	typedef void (*cbf_sss_t)(uint8_t,uint8_t,uint8_t);
-
-	// same names of event* functions; callbacks to be defined in host specific code
-	extern cbf_ss_t cbPinMode;
-	extern cbf_ss_t cbDigitalPortData;
-	extern cbf_ss_t cbDigitalPinData;
-	extern cbf_ss_t cbAnalogPinData;
-	extern cbf_ss_t cbDigitalPortReport;
-	extern cbf_ss_t cbDigitalPinReport;
-	extern cbf_ss_t cbAnalogPinReport;
-	extern cbf_void_t cbMicrostampReport;
-	extern cbf_void_t cbTimestampReport;
-	extern cbf_short_t cbCongestionReport;
-	extern cbf_void_t cbVersionReport;
-	extern cbf_void_t cbInterrupt;
-	extern cbf_short_t cbEncodingSwitch;
-	extern cbf_void_t cbEmergencyStop1;
-	extern cbf_void_t cbEmergencyStop2;
-	extern cbf_void_t cbEmergencyStop3;
-	extern cbf_void_t cbEmergencyStop4;
-	extern cbf_void_t cbSystemPause;
-	extern cbf_void_t cbSystemResume;
-	extern cbf_void_t cbSystemHalt;
-	extern cbf_void_t cbSystemReset;
+	// simple events
+	void cmdPinMode(uint8_t pin, uint8_t mode);
+	void cmdDigitalPortData(uint8_t port, uint8_t value);
+	void cmdDigitalPinData(uint8_t pin, uint8_t value);
+	void cmdAnalogPinData(uint8_t pin, uint8_t value);
+	void cmdDigitalPortReport(uint8_t port, uint8_t value);
+	void cmdDigitalPinReport(uint8_t port, uint8_t value);
+	void cmdAnalogPinReport(uint8_t pin, uint8_t value);
+	void cmdMicrostampReport(void); // report number of seconds since boot (or overflow)
+	void cmdTimestampReport(void); // report number of seconds since boot (or overflow)
+	void cmdCongestionReport(uint8_t lag); // report lag
+	void cmdVersionReport(void); // report protocol version
+	void cmdInterrupt(void); // interrupt current event (ex: signal error)
+	void cmdEncodingSwitch(uint8_t proto);
+	void cmdEmergencyStop1(void); // stop activity on pin group 1
+	void cmdEmergencyStop2(void); // stop activity on pin group 2
+	void cmdEmergencyStop3(void); // stop activity on pin group 3
+	void cmdEmergencyStop4(void); // stop activity on pin group 4
+	void cmdSystemPause(void); // system pause
+	void cmdSystemResume(void); // system resume (from pause)
+	void cmdSystemHalt(void); // system halt
+	void cmdSystemReset(void); // initialize a known default state
 
 	// sysex events
-	extern cbf_void_t cbSysexDigitalPinData;
-	extern cbf_void_t cbSysexAnalogPinData;
-	extern cbf_void_t cbSysexSchedulerData;
-	extern cbf_void_t cbSysexOneWireData;
-	extern cbf_void_t cbSysexUartData;
-	extern cbf_void_t cbSysexI2CData;
-	extern cbf_void_t cbSysexSPIData;
-	extern cbf_void_t cbSysexStringData;
-	extern cbf_void_t cbSysexDigitalPinReport;
-	extern cbf_void_t cbSysexAnalogPinReport;
-	extern cbf_void_t cbSysexVersionReport;
-	extern cbf_void_t cbSysexFeaturesReport;
-	extern cbf_void_t cbSysexPinCapsReq;
-	extern cbf_void_t cbSysexPinCapsRep;
-	extern cbf_void_t cbSysexPinMapReq;
-	extern cbf_void_t cbSysexPinMapRep;
-	extern cbf_void_t cbSysexPinStateReq;
-	extern cbf_void_t cbSysexPinStateRep;
-	extern cbf_void_t cbSysexDeviceReq;
-	extern cbf_void_t cbSysexDeviceRep;
-	extern cbf_void_t cbSysexRCSwitchIn;
-	extern cbf_void_t cbSysexRCSwitchOut;
+	void cmdSysexDigitalPinData(void); // send any value to any pin
+	void cmdSysexAnalogPinData(void); // send and specify the analog reference source and R/W resolution
+	void cmdSysexSchedulerData(void); // scheduler request (see related sub commands)
+	void cmdSysexOneWireData(void); // 1WIRE communication (see related sub commands)
+	void cmdSysexUartData(void); // UART communication (see related sub commands)
+	void cmdSysexI2CData(void); // I2C communication (see related sub commands)
+	void cmdSysexSPIData(void); // SPI communication (see related sub commands)
+	void cmdSysexStringData(void); // encoded string (see related sub commands)
+	void cmdSysexDigitalPinReport(void); // report of ANY digital input pins
+	void cmdSysexAnalogPinReport(void); // report of ANY analog input pins
+	void cmdSysexVersionReport(void); // report firmware version details
+	void cmdSysexFeaturesReport(void); // report features supported by the firmware
+	void cmdSysexPinCapsReq(void); // ask for supported modes and resolution of all pins
+	void cmdSysexPinCapsRep(void); // reply with supported modes and resolution
+	void cmdSysexPinMapReq(void); // ask for mapping of analog to pin numbers
+	void cmdSysexPinMapRep(void); // reply with mapping info
+	void cmdSysexPinStateReq(void); // ask for a pin's current mode and value
+	void cmdSysexPinStateRep(void); // reply with pin's current mode and value
+	void cmdSysexDeviceReq(void); // Generic Device Driver RPC
+	void cmdSysexDeviceRep(void); // Generic Device Driver RPC
+	void cmdSysexRCSwitchIn(void); // bridge to RCSwitch Arduino library
+	void cmdSysexRCSwitchOut(void); // bridge to RCSwitch Arduino library
 
 	// sysex sub: scheduler events
-	extern cbf_ss_t cbSchedCreate;
-	extern cbf_short_t cbSchedDelete;
-	extern cbf_sss_t cbSchedAdd;
-	extern cbf_sl_t cbSchedSchedule;
-	extern cbf_long_t cbSchedDelay;
-	extern cbf_void_t cbSchedQueryList;
-	extern cbf_short_t cbSchedQueryTask;
-	extern cbf_void_t cbSchedReset;
+	void cmdSchedCreate(uint8_t id, uint8_t len);
+	void cmdSchedDelete(uint8_t id);
+	void cmdSchedAdd(uint8_t id, uint8_t additionalBytes, uint8_t *message);
+	void cmdSchedSchedule(uint8_t id, uint16_t delay);
+	void cmdSchedDelay(uint16_t delay);
+	void cmdSchedQueryList(void);
+	void cmdSchedQueryTask(uint8_t id);
+	void cmdSchedReset(void);
 
 #ifdef __cplusplus
 }

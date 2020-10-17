@@ -9,17 +9,12 @@ cbf_eval_t cbEvalEnc = NULL;
 cbf_coder_t cbEncoder = NULL;
 cbf_eval_t cbEvalDec = NULL;
 cbf_coder_t cbDecoder = NULL;
-cbf_data_t runEvent = NULL;
 
 // message handling
 static uint8_t waitForData = 0;
-static uint8_t eventBuffer[PROTOCOL_MAX_EVENT_BYTES]; // current event in transit
-static uint8_t eventSize = 0; // current event size
+uint8_t eventBuffer[PROTOCOL_MAX_EVENT_BYTES];
+uint8_t eventSize = 0;
 uint16_t deltaTime = 0;
-
-// tasks handling
-task_t *tasks = NULL;
-task_t *running = NULL;
 
 static uint8_t evalEncode(uint8_t count) {
 	return 0;
@@ -269,10 +264,7 @@ uint8_t encodeEvent(uint8_t cmd, uint8_t argc, uint8_t *argv, uint8_t *event) {
 	uint8_t start = count;
 	uint8_t datasize;
 	switch (cmd) {
-		case STATUS_ENCODING_SWITCH: //
-			break;
-			// events without data repeat the status byte in all the 3 bytes
-		case STATUS_INTERRUPT:
+		case STATUS_INTERRUPT: // events without data repeat the status byte in all the 3 bytes
 		case STATUS_EMERGENCY_STOP1:
 		case STATUS_EMERGENCY_STOP2:
 		case STATUS_EMERGENCY_STOP3:
@@ -289,11 +281,12 @@ uint8_t encodeEvent(uint8_t cmd, uint8_t argc, uint8_t *argv, uint8_t *event) {
 			event[start+2] = cmd;
 			return count;
 			break;
-		case STATUS_PIN_MODE:
+		case STATUS_PIN_MODE: // events with 1 or 2 bytes of data
 		case STATUS_MICROSTAMP_REPORT:
 		case STATUS_TIMESTAMP_REPORT:
 		case STATUS_CONGESTION_REPORT:
 		case STATUS_VERSION_REPORT:
+		case STATUS_ENCODING_SWITCH:
 		case STATUS_SYSTEM_PAUSE:
 		case STATUS_SYSTEM_RESUME:
 			count += 3;
@@ -306,7 +299,7 @@ uint8_t encodeEvent(uint8_t cmd, uint8_t argc, uint8_t *argv, uint8_t *event) {
 			event[start+2] = *argv;
 			return count;
 			break;
-		case STATUS_DIGITAL_PORT_DATA:
+		case STATUS_DIGITAL_PORT_DATA: // events with channel id and 2 bytes of data
 		case STATUS_DIGITAL_PIN_DATA:
 		case STATUS_ANALOG_PIN_DATA:
 		case STATUS_DIGITAL_PORT_REPORT:
@@ -323,152 +316,33 @@ uint8_t encodeEvent(uint8_t cmd, uint8_t argc, uint8_t *argv, uint8_t *event) {
 			event[start+2] = argv[1];
 			return count;
 			break;
-		case STATUS_SYSEX_START:
+		case STATUS_SYSEX_START: // sysex events
+			datasize += cbEvalEnc(argc-2);
+			count += datasize;
+			event = (uint8_t*)calloc(count,sizeof(uint8_t));
+			event[0] = 255;
+			event[1] = (uint8_t)(deltaTime & 0x00FF); // LSB
+			event[2] = (uint8_t)(deltaTime & 0xFF00); // MSB
+			event[start] = cmd; // sysex start
+			event[start+1] = argv[0]; // mod byte
+			event[start+2] = argv[1]; // sysex id
+			cbEncoder(&argv[2], datasize, &event[start+3]);
+			event[count-1] = STATUS_SYSEX_END;
 			switch(argv[0]) {
 				case SYSEX_MOD_EXTEND:
-					count += 4;
-					event = (uint8_t*)calloc(count,sizeof(uint8_t));
-					event[0] = 255;
-					event[1] = (uint8_t)(deltaTime & 0x00FF); // LSB
-					event[2] = (uint8_t)(deltaTime & 0xFF00); // MSB
-					event[start] = cmd; // sysex start
-					event[start+1] = argv[0]; // mod byte
-					event[start+2] = argv[1]; // extended sysex byte
-					event[start+3] = STATUS_SYSEX_END;
-					return count;
+					// TODO call extended sysex handler
 					break;
 				case SYSEX_MOD_REALTIME:
-					count += 3;
-					event = (uint8_t*)calloc(count,sizeof(uint8_t));
-					event[0] = 255;
-					event[1] = (uint8_t)(deltaTime & 0x00FF); // LSB
-					event[2] = (uint8_t)(deltaTime & 0xFF00); // MSB
-					event[start] = cmd; // sysex start
-					event[start+1] = argv[0]; // mod byte
-					// no data bytes, the system will go in realtime mode
-					event[start+2] = STATUS_SYSEX_END;
-					return count;
+					// TODO call realtime sysex handler
 					break;
 				default:
-					datasize += cbEvalEnc(argc-2);
-					count += datasize;
-					event = (uint8_t*)calloc(count,sizeof(uint8_t));
-					event[0] = 255;
-					event[1] = (uint8_t)(deltaTime & 0x00FF); // LSB
-					event[2] = (uint8_t)(deltaTime & 0xFF00); // MSB
-					event[start] = cmd; // sysex start
-					event[start+1] = argv[0]; // mod byte
-					event[start+2] = argv[1]; // sysex id
-					cbEncoder(&argv[2], datasize, &event[start+3]);
-					event[count-1] = STATUS_SYSEX_END;
+					// normal, non-realtime, sysex
 					return count;
 					break;
 			}
 			break;
 	}
 	return 0;
-}
-
-void printEvent(uint8_t size, uint8_t *event) {
-	if (event == NULL) {
-		size = eventSize;
-		event = eventBuffer;
-	}
-	switch(event[0]) {
-		case STATUS_SYSEX_START:
-			printString("%02x ", event[1]);
-			for(uint8_t i=1;i<size;i++) {
-				printString("%02x ", event[i]);
-			}
-			printString("(");
-			switch(event[1]) {
-				case SYSEX_MOD_EXTEND:
-					break;
-				case SYSEX_RCSWITCH_OUT:
-					printString("Not implemented");
-					break;
-				case SYSEX_RCSWITCH_IN:
-					printString("Not implemented");
-					break;
-				case SYSEX_DEVICE_REQ:
-					printString("Not implemented");
-					break;
-				case SYSEX_DEVICE_REP:
-					printString("Not implemented");
-					break;
-				case SYSEX_UART_DATA:
-					printString("Not implemented");
-					break;
-				case SYSEX_FEATURES_REPORT:
-					printString("Not implemented");
-					break;
-				case SYSEX_SPI_DATA:
-					printString("Not implemented");
-					break;
-				case SYSEX_PINMAP_REQ:
-					printString("Not implemented");
-					break;
-				case SYSEX_PINMAP_REP:
-					printString("Not implemented");
-					break;
-				case SYSEX_PINCAPS_REQ:
-					printString("Not implemented");
-					break;
-				case SYSEX_PINCAPS_REP:
-					printString("Not implemented");
-					break;
-				case SYSEX_PINSTATE_REQ:
-					printString("Not implemented");
-					break;
-				case SYSEX_PINSTATE_REP:
-					printString("Not implemented");
-					break;
-				case SYSEX_STRING_DATA:
-					printString("Not implemented");
-					break;
-				case SYSEX_ONEWIRE_DATA:
-					printString("Not implemented");
-					break;
-				case SYSEX_I2C_DATA:
-					printString("Not implemented");
-					break;
-				case SYSEX_VERSION_REPORT:
-					printString("Not implemented");
-					break;
-				case SYSEX_SCHEDULER_DATA:
-					printString("Not implemented");
-					break;
-				case SYSEX_MOD_NON_REALTIME:
-					printString("Not implemented");
-					break;
-				case SYSEX_MOD_REALTIME:
-					printString("Not implemented");
-					break;
-				default:
-					printString("Unknown SysEx type %#x", event[1]);
-					break;
-			}
-			printString(")");
-			break;
-		case STATUS_PIN_MODE:
-		case STATUS_DIGITAL_PORT_DATA:
-		case STATUS_DIGITAL_PIN_DATA:
-		case STATUS_ANALOG_PIN_DATA:
-			printString("%02x %02x %02x\n", event[3], event[4], event[5]);
-			break;
-		case STATUS_DIGITAL_PORT_REPORT:
-		case STATUS_DIGITAL_PIN_REPORT:
-		case STATUS_ANALOG_PIN_REPORT:
-			printString("%02x %02x\n", event[3], event[4]);
-			break;
-		case STATUS_SYSTEM_RESET:
-		case STATUS_VERSION_REPORT:
-			printString("%02x\n", event[3]);
-			break;
-		default:
-			printString("NULL\n");
-			break;
-	}
 }
 
 uint8_t encodeTask(task_t *task, uint8_t error, uint8_t *event) {
@@ -494,46 +368,39 @@ uint8_t encodeTask(task_t *task, uint8_t error, uint8_t *event) {
 	return encodeEvent(STATUS_SYSEX_START, 3+tasklen, data, event);
 }
 
-void runScheduler(uint16_t now) {
-	if (tasks) {
-		task_t *current = tasks;
-		task_t *previous = NULL;
-		while (current) {
-			if (current->ms > 0 && current->ms < now) { // TODO handle overflow
-				uint16_t start = current->ms;
-				uint8_t pos = current->pos;
-				uint8_t len = current->len;
-				uint8_t *messages = current->messages;
-				bool reschedule = false;
-				running = current;
-				while (pos < len) {
-					if (decodeEvent(&messages[pos++], 0, NULL))
-						runEvent(eventSize, eventBuffer);
-					if (start != current->ms) { // return true if task got rescheduled during run.
-						current->pos = ( pos == len ? 0 : pos ); // last message executed? -> start over next time
-						reschedule = true;
-						break;
-					}
-				}
-				running = NULL;
-				if (reschedule) {
-					previous = current;
-					current = current->next;
-				} else {
-					if (previous) {
-						previous->next = current->next;
-						free(current);
-						current = previous->next;
-					} else {
-						tasks = current->next;
-						free(current);
-						current = tasks;
-					}
-				}
-			} else {
-				current = current->next;
-			}
-		}
+void printEvent(uint8_t size, uint8_t *event) {
+	if (event == NULL) {
+		size = eventSize;
+		event = eventBuffer;
+	}
+	switch (event[3]) {
+		case STATUS_PIN_MODE:
+		case STATUS_DIGITAL_PORT_DATA:
+		case STATUS_DIGITAL_PIN_DATA:
+		case STATUS_ANALOG_PIN_DATA:
+		case STATUS_DIGITAL_PORT_REPORT:
+		case STATUS_DIGITAL_PIN_REPORT:
+		case STATUS_ANALOG_PIN_REPORT:
+		case STATUS_MICROSTAMP_REPORT:
+		case STATUS_TIMESTAMP_REPORT:
+		case STATUS_CONGESTION_REPORT:
+		case STATUS_VERSION_REPORT:
+		case STATUS_INTERRUPT:
+		case STATUS_ENCODING_SWITCH:
+		case STATUS_EMERGENCY_STOP1:
+		case STATUS_EMERGENCY_STOP2:
+		case STATUS_EMERGENCY_STOP3:
+		case STATUS_EMERGENCY_STOP4:
+		case STATUS_SYSTEM_PAUSE:
+		case STATUS_SYSTEM_RESUME:
+		case STATUS_SYSTEM_HALT:
+		case STATUS_SYSTEM_RESET:
+		case STATUS_SYSEX_START:
+			printString("Not implemented");
+			break;
+		default:
+			printString("Unknown event %#x", event[3]);
+			break;
 	}
 }
 
