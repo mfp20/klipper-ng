@@ -16,13 +16,13 @@ extern "C" {
 #error "Please add __GITREVPARSE__ define to your compiler command line."
 #endif
 
-	// in-use pins status, array index is the pin number
 	typedef struct pin_status_s {
 		volatile uint8_t mode; // refer to protocol for known modes
 		volatile uint8_t value; // current value, MSB for 16bit values
 		volatile uint8_t vextend; // LSB for 16bit values (ex: AVR ADC pins)
 	} pin_status_t;
 
+	// in-use pins status, array index is the pin number
 	extern pin_status_t *pin_status;
 	extern uint8_t pin_status_size;
 

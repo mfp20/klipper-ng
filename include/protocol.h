@@ -26,11 +26,13 @@ The protocol mimic the MIDI protocol. Each byte of the MIDI byte stream
 starts with MSb 1 for control bytes and starts with MSb 0 for data bytes.
 A MIDI byte stream is framed in 'events':
 
-	event = [ticks][message]
+	event = [ticks][message][CRC8]
 
 		ticks = [0xFF][2 bytes delta time] (the time delay from the previous event)
 
 		message = [status_byte][status_data] (new event definition)
+
+		CRC8 = simple CRC (all bytes excluded CRC itself)
 
 Common events are 3 bytes long, ie: have max 2 bytes of data.
 To extend the amount of data in each event, the status byte can be 0xF0 to start a sysex.
@@ -93,12 +95,12 @@ Example sysex event:
 #define STATUS_CONGESTION_REPORT	0xF3 // report lag
 #define STATUS_VERSION_REPORT		0xF4 // report protocol version
 #define STATUS_INTERRUPT			0xF5 // interrupt current event (ex: signal error)
-#define STATUS_ENCODING_SWITCH		0xF6 //
+#define STATUS_ENCODING_SWITCH		0xF6 // change protocol encoding
 #define STATUS_SYSEX_END			0xF7 // end a MIDI Sysex message
-#define STATUS_EMERGENCY_STOP1		0xF8 // stop activity on pin group 1
-#define STATUS_EMERGENCY_STOP2		0xF9 // stop activity on pin group 2
-#define STATUS_EMERGENCY_STOP3		0xFA // stop activity on pin group 3
-#define STATUS_EMERGENCY_STOP4		0xFB // stop activity on pin group 4
+#define STATUS_UNUSED_F8			0xF8 //
+#define STATUS_UNUSED_F9			0xF9 //
+#define STATUS_UNUSED_FA			0xFA //
+#define STATUS_EMERGENCY_STOP		0xFB // stop activity on pin group X
 #define STATUS_SYSTEM_PAUSE			0xFC // system pause
 #define STATUS_SYSTEM_RESUME		0xFD // system resume (from pause)
 #define STATUS_SYSTEM_HALT			0xFE // system halt
@@ -192,6 +194,11 @@ If there's no delay_task message at the end of the task (so the time-to-run is n
 // features data sub
 #define SYSEX_SUB_FEATURES_ALL		127
 
+// preferred pins (array index is the 'channel' in STATUS_XXX events)
+uint8_t pins[16];
+// pin groups (4 groups of 16 pins each, for STATUS_)
+uint8_t group[4][16];
+
 typedef struct task_s {
 	uint8_t id; // only 7bits used -> supports 127 tasks
 	long ms; // ms to task
@@ -254,10 +261,10 @@ uint8_t encodeCongestionReport(uint8_t *result, uint8_t lag);
 uint8_t encodeVersionReport(uint8_t *result);
 uint8_t encodeInterrupt(uint8_t *result);
 uint8_t encodeEncodingSwitch(uint8_t *result, uint8_t proto);
-uint8_t encodeEmergencyStop1(uint8_t *result);
-uint8_t encodeEmergencyStop2(uint8_t *result);
-uint8_t encodeEmergencyStop3(uint8_t *result);
-uint8_t encodeEmergencyStop4(uint8_t *result);
+uint8_t encodeUnused_F8(uint8_t *result);
+uint8_t encodeUnused_F9(uint8_t *result);
+uint8_t encodeUnused_FA(uint8_t *result);
+uint8_t encodeEmergencyStop(uint8_t *result);
 uint8_t encodeSystemPause(uint8_t *result, uint16_t delay);
 uint8_t encodeSystemResume(uint8_t *result, uint16_t delay);
 uint8_t encodeHalt(uint8_t *result);

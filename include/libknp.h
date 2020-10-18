@@ -95,10 +95,10 @@ extern "C" {
 	//
 
 	// simple events
-	void eventPinMode(uint8_t pin, uint8_t mode);
-	void eventDigitalPortData(uint8_t port, uint8_t value);
-	void eventDigitalPinData(uint8_t pin, uint8_t value);
-	void eventAnalogPinData(uint8_t pin, uint8_t value);
+	void eventPinMode(uint8_t pin, uint8_t mode); // set pin mode (in/out, pullup, ...)
+	void eventDigitalPortData(uint8_t port, uint8_t value); // set port value
+	void eventDigitalPinData(uint8_t pin, uint8_t value); // set pin digital value
+	void eventAnalogPinData(uint8_t pin, uint8_t value); // set pin analog value
 	void eventDigitalPortReport(uint8_t port);
 	void eventDigitalPinReport(uint8_t pin);
 	void eventAnalogPinReport(uint8_t pin);

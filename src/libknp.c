@@ -653,16 +653,16 @@ void runEvent(uint8_t size, uint8_t *event) {
 		case STATUS_ENCODING_SWITCH:
 			eventEncodingSwitch(event[32]);
 			break;
-		case STATUS_EMERGENCY_STOP1:
+		case STATUS_UNUSED_F8:
 			eventEmergencyStop1();
 			break;
-		case STATUS_EMERGENCY_STOP2:
+		case STATUS_UNUSED_F9:
 			eventEmergencyStop2();
 			break;
-		case STATUS_EMERGENCY_STOP3:
+		case STATUS_UNUSED_FA:
 			eventEmergencyStop3();
 			break;
-		case STATUS_EMERGENCY_STOP4:
+		case STATUS_EMERGENCY_STOP:
 			eventEmergencyStop4();
 			break;
 		case STATUS_SYSTEM_PAUSE:
@@ -878,10 +878,10 @@ void printEvent(uint8_t size, uint8_t *event, char *output) {
 		case STATUS_VERSION_REPORT:
 		case STATUS_INTERRUPT:
 		case STATUS_ENCODING_SWITCH:
-		case STATUS_EMERGENCY_STOP1:
-		case STATUS_EMERGENCY_STOP2:
-		case STATUS_EMERGENCY_STOP3:
-		case STATUS_EMERGENCY_STOP4:
+		case STATUS_UNUSED_F8:
+		case STATUS_UNUSED_F9:
+		case STATUS_UNUSED_FA:
+		case STATUS_EMERGENCY_STOP:
 		case STATUS_SYSTEM_PAUSE:
 		case STATUS_SYSTEM_RESUME:
 		case STATUS_SYSTEM_HALT:
