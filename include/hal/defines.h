@@ -1,6 +1,16 @@
-
 #ifndef HAL_DEFINES_H
 #define HAL_DEFINES_H
+
+// WARNING WARNING WARNING comment out this line before release compile
+// the proper value is set in the makefile
+// it is here because my vim inline debugger is a pain in the ass
+#define __GIT_REVPARSE__ 123
+
+#ifdef __GIT_REVPARSE__
+#define RELEASE_DEFINES __GIT_REVPARSE__
+#else
+#error "Please add __GITREVPARSE__ define to your compiler command line."
+#endif
 
 //
 // MCUs

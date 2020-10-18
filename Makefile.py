@@ -20,20 +20,35 @@ DEST=DIR_PY+'/pyknp.h'
 
 print("- Composing pyknp.h file.")
 
+ifdef=0
 includeguard=0
 cppextern=0
+ifelse=0
 def removeCFFIUnsupported(line):
+    global ifdef
     global includeguard
     global cppextern
+    global ifelse
     # remove 'next line'
+    if ifdef:
+        ifdef=0
+        return ''
     if includeguard:
         includeguard=0
         return ''
     if cppextern:
         cppextern=0
         return ''
+    if ifelse:
+        ifelse=0
+        return ''
     x = re.findall("^#", line)
     if x:
+        # remove ifdef
+        y = re.findall("^#ifdef", line)
+        if y:
+            ifdef = 1
+            return ''
         # remove include guard
         y = re.findall("(^#ifndef.*_H$)", line)
         if y:
@@ -43,6 +58,11 @@ def removeCFFIUnsupported(line):
         y = re.findall("^#ifdef __cplusplus", line)
         if y:
             cppextern = 1
+            return ''
+        # remove else
+        y = re.findall("^#else", line)
+        if y:
+            ifelse = 1
             return ''
         # remove endif
         y = re.findall("^#endif", line)

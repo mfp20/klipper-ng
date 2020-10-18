@@ -12,6 +12,41 @@
 #include <stdio.h>		// sprintf
 #include <string.h>		// memset, strcopy
 
+commport_t *console = NULL;
+
+void consoleWrite(const char *format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start (args, format);
+	int len = vsprintf (buffer,format, args);
+	write(console->fd, buffer, len);
+	va_end (args);
+}
+
+void stdoutWrite(const char *format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start (args, format);
+	int len = vsprintf (buffer,format, args);
+	write(2, "- ", 2);
+	write(1, buffer, len); // 1 = stdout
+	va_end (args);
+}
+
+void stderrWrite(const char *format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start (args, format);
+	int len = vsprintf (buffer,format, args);
+	write(2, "* ", 2);
+	write(2, buffer, len); // 2 = stderr
+	va_end (args);
+}
+
+fptr_variable_t binWrite = consoleWrite;
+fptr_variable_t txtWrite = stdoutWrite;
+fptr_variable_t errWrite = stdoutWrite;
+
 // TIME -----------------------------------------------------------------------------------
 volatile uint16_t tnano = 0;
 volatile uint16_t tmicro = 0;
@@ -238,7 +273,6 @@ volatile pin_frame_t* pin_pulse_multi(uint16_t milli) {
 // COMMS -----------------------------------------------------------------------------------
 commport_t *ports = NULL;
 uint8_t ports_no = 0;
-commport_t *console = NULL;
 
 commport_t* commport_register(uint8_t type, uint8_t no) {
 	// allocate ports array
@@ -283,33 +317,6 @@ commport_t* commport_register(uint8_t type, uint8_t no) {
 	return &ports[ports_no-1];
 }
 
-void consoleWrite(const char *format, ...) {
-	char buffer[256];
-	va_list args;
-	va_start (args, format);
-	int len = vsprintf (buffer,format, args);
-	write(console->fd, buffer, len);
-	va_end (args);
-}
-
-void logWrite(const char *format, ...) {
-	char buffer[256];
-	va_list args;
-	va_start (args, format);
-	int len = vsprintf (buffer,format, args);
-	write(1, buffer, len); // 1 = stdout
-	va_end (args);
-}
-
-void errWrite(const char *format, ...) {
-	char buffer[256];
-	va_list args;
-	va_start (args, format);
-	int len = vsprintf (buffer,format, args);
-	write(2, buffer, len); // 2 = stderr
-	va_end (args);
-}
-
 
 // UART
 static const char *uart_pty_filename = "/tmp/klipper-ng-pty";
@@ -347,7 +354,7 @@ uint8_t uart_begin(commport_t *uart, uint32_t baud) {
 	uart->fd = mfd;
 	uart->baud = baud;
 	//
-	logWrite("PTY ready @ %s\n", filename);
+	txtWrite("PTY ready @ %s\n", filename);
 	return mfd;
 }
 

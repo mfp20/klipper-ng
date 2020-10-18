@@ -1,4 +1,3 @@
-
 #ifndef HAL_ARCH_H
 #define HAL_ARCH_H
 
@@ -14,6 +13,11 @@ extern "C" {
 #include <utility/bitops.h>
 #include <hal/defines.h>
 
+#ifdef __GIT_REVPARSE__
+#define RELEASE_ARCH __GIT_REVPARSE__
+#else
+#error "Please add __GITREVPARSE__ define to your compiler command line."
+#endif
 
 // TYPEDEFs
 
@@ -126,21 +130,22 @@ void vars_reset(void);
 void commports_reset(void);
 
 // console&stdout&stderr
-void consoleWrite(const char *format, ...);
-void logWrite(const char *format, ...);
-void errWrite(const char *format, ...);
+typedef void (*fptr_variable_t)(const char *format, ...);
+extern fptr_variable_t binWrite;
+extern fptr_variable_t txtWrite;
+extern fptr_variable_t errWrite;
 
 // init MCU
-void _arch_init(void);
-void arch_init(void);
+void _arch_init(void); // arch specific
+void arch_init(void); // common
 
 // tasks to run every loop cycle
-void _arch_run(void);
-void arch_run(void);
+void _arch_run(void); // arch specific
+void arch_run(void); // common
 
 // set MCU to know state (ie: ready for init)
-void _arch_reset(void);
-uint8_t arch_reset(void);
+void _arch_reset(void); // arch specific
+uint8_t arch_reset(void); // common
 
 // halt MCU (ie: need to power cycle before init)
 uint8_t arch_halt(void);

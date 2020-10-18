@@ -5,10 +5,21 @@
 extern "C" {
 #endif
 
+// WARNING WARNING WARNING comment out this line before release compile
+// the proper value is set in the makefile
+// it is here because my vim inline debugger is a pain in the ass
+#define __GIT_REVPARSE__ 123
+
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <protocol_custom.h>
+
+#ifdef __GIT_REVPARSE__
+#define RELEASE_PROTOCOL __GIT_REVPARSE__
+#else
+#error "Please add __GITREVPARSE__ define to your compiler command line."
+#endif
 
 /*
 The protocol mimic the MIDI protocol. Each byte of the MIDI byte stream
@@ -97,12 +108,12 @@ Example sysex event:
 // 0x00-0x1F: DATA
 #define SYSEX_DIGITAL_PIN_DATA		0x00 // send any value to any pin
 #define SYSEX_ANALOG_PIN_DATA		0x01 // send and specify the analog reference source and R/W resolution
-#define SYSEX_SCHEDULER_DATA		0x02 // scheduler request (see related sub commands)
-#define SYSEX_ONEWIRE_DATA			0x03 // 1WIRE communication (see related sub commands)
-#define SYSEX_UART_DATA				0x04 // UART communication (see related sub commands)
-#define SYSEX_I2C_DATA				0x05 // I2C communication (see related sub commands)
-#define SYSEX_SPI_DATA				0x06 // SPI communication (see related sub commands)
-#define SYSEX_STRING_DATA			0x07 // encoded string (see related sub commands)
+#define SYSEX_ONEWIRE_DATA			0x02 // 1WIRE communication (see related sub commands)
+#define SYSEX_UART_DATA				0x03 // UART communication (see related sub commands)
+#define SYSEX_I2C_DATA				0x04 // I2C communication (see related sub commands)
+#define SYSEX_SPI_DATA				0x05 // SPI communication (see related sub commands)
+#define SYSEX_STRING_DATA			0x06 // encoded string (see related sub commands)
+#define SYSEX_SCHEDULER_DATA		0x07 // scheduler request (see related sub commands)
 // 0x20-0x3F: REPORT
 #define SYSEX_DIGITAL_PIN_REPORT	0x20 // report of ANY digital input pins
 #define SYSEX_ANALOG_PIN_REPORT		0x21 // report of ANY analog input pins
@@ -167,6 +178,19 @@ If there's no delay_task message at the end of the task (so the time-to-run is n
 // string data sub (0x00-0x7F)
 #define SYSEX_SUB_STRING_	0
 
+// version data sub
+#define SYSEX_SUB_VERSION_FIRMWARE_NAME	0
+#define SYSEX_SUB_VERSION_FIRMWARE_VER	1
+#define SYSEX_SUB_VERSION_LIBKNP	2
+#define SYSEX_SUB_VERSION_PROTOCOL	3
+#define SYSEX_SUB_VERSION_HAL		4
+#define SYSEX_SUB_VERSION_BOARD		5
+#define SYSEX_SUB_VERSION_ARCH		6
+#define SYSEX_SUB_VERSION_DEFINES	7
+#define SYSEX_SUB_VERSION_ALL		127
+
+// features data sub
+#define SYSEX_SUB_FEATURES_ALL		127
 
 typedef struct task_s {
 	uint8_t id; // only 7bits used -> supports 127 tasks
@@ -184,8 +208,6 @@ typedef uint8_t (*cbf_eval_t)(uint8_t count);
 typedef void (*cbf_coder_t)(uint8_t *input, uint8_t count, uint8_t *output);
 
 // callback functions
-extern cbf_varg_t printString;
-extern cbf_varg_t printErr;
 extern cbf_eval_t cbEvalEnc;
 extern cbf_coder_t cbEncoder;
 extern cbf_eval_t cbEvalDec;
@@ -198,9 +220,11 @@ extern uint8_t eventSize; // current event size
 
 // reset receive buffer
 void bufferReset(void);
+// copy buffer to store, returns the event size
+uint8_t bufferStore(uint8_t *store);
+// copy event to buffer
+void bufferLoad(uint8_t *store, uint8_t size);
 
-// copy buffer to event, returns the event size
-uint8_t bufferCopy(uint8_t *event);
 
 //
 uint8_t encodingSwitch(uint8_t proto);
@@ -217,9 +241,28 @@ uint8_t decodeEvent(uint8_t *byte, uint8_t size, uint8_t *event);
 uint8_t encodeEvent(uint8_t cmd, uint8_t argc, uint8_t *argv, uint8_t *event);
 // encode subs (task, ...)
 uint8_t encodeTask(task_t *task, uint8_t error, uint8_t *event);
-
-// print event in buffer (or given event)
-void printEvent(uint8_t count, uint8_t *event);
+uint8_t encodePinMode(uint8_t *result, uint8_t pin, uint8_t mode);
+uint8_t encodeDigitalPortData(uint8_t *result, uint8_t port, uint8_t value);
+uint8_t encodeDigitalPinData(uint8_t *result, uint8_t pin, uint8_t value);
+uint8_t encodeAnalogPinData(uint8_t *result, uint8_t pin, uint8_t value);
+uint8_t encodeDigitalPortReport(uint8_t *result, uint8_t port, uint8_t value);
+uint8_t encodeDigitalPinReport(uint8_t *result, uint8_t pin, uint8_t value);
+uint8_t encodeAnalogPinReport(uint8_t *result, uint8_t pin, uint8_t value);
+uint8_t encodeMicrostampReport(uint8_t *result, uint32_t us);
+uint8_t encodeTimestampReport(uint8_t *result, uint16_t s);
+uint8_t encodeCongestionReport(uint8_t *result, uint8_t lag);
+uint8_t encodeVersionReport(uint8_t *result);
+uint8_t encodeInterrupt(uint8_t *result);
+uint8_t encodeEncodingSwitch(uint8_t *result, uint8_t proto);
+uint8_t encodeEmergencyStop1(uint8_t *result);
+uint8_t encodeEmergencyStop2(uint8_t *result);
+uint8_t encodeEmergencyStop3(uint8_t *result);
+uint8_t encodeEmergencyStop4(uint8_t *result);
+uint8_t encodeSystemPause(uint8_t *result, uint16_t delay);
+uint8_t encodeSystemResume(uint8_t *result, uint16_t delay);
+uint8_t encodeHalt(uint8_t *result);
+uint8_t encodeReset(uint8_t *result);
+uint8_t encodeSysex(uint8_t *result, uint8_t argc, uint8_t *argv);
 
 #ifdef __cplusplus
 }

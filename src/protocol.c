@@ -3,8 +3,6 @@
 #include <stdlib.h> // for malloc
 
 // callback functions
-cbf_varg_t printString = NULL;
-cbf_varg_t printErr = NULL;
 cbf_eval_t cbEvalEnc = NULL;
 cbf_coder_t cbEncoder = NULL;
 cbf_eval_t cbEvalDec = NULL;
@@ -98,11 +96,18 @@ void bufferReset(void) {
 	eventSize = 0;
 }
 
-uint8_t bufferCopy(uint8_t *event) {
+uint8_t bufferStore(uint8_t *store) {
 	for(int i=0;i<eventSize;i++) {
-		event[i] = eventBuffer[i];
+		store[i] = eventBuffer[i];
 	}
 	return eventSize;
+}
+
+void bufferLoad(uint8_t *store, uint8_t size) {
+	for(int i=0;i<size;i++) {
+		eventBuffer[i] = store[i];
+	}
+	eventSize = size;
 }
 
 uint8_t encodingSwitch(uint8_t proto) {
@@ -368,39 +373,92 @@ uint8_t encodeTask(task_t *task, uint8_t error, uint8_t *event) {
 	return encodeEvent(STATUS_SYSEX_START, 3+tasklen, data, event);
 }
 
-void printEvent(uint8_t size, uint8_t *event) {
-	if (event == NULL) {
-		size = eventSize;
-		event = eventBuffer;
-	}
-	switch (event[3]) {
-		case STATUS_PIN_MODE:
-		case STATUS_DIGITAL_PORT_DATA:
-		case STATUS_DIGITAL_PIN_DATA:
-		case STATUS_ANALOG_PIN_DATA:
-		case STATUS_DIGITAL_PORT_REPORT:
-		case STATUS_DIGITAL_PIN_REPORT:
-		case STATUS_ANALOG_PIN_REPORT:
-		case STATUS_MICROSTAMP_REPORT:
-		case STATUS_TIMESTAMP_REPORT:
-		case STATUS_CONGESTION_REPORT:
-		case STATUS_VERSION_REPORT:
-		case STATUS_INTERRUPT:
-		case STATUS_ENCODING_SWITCH:
-		case STATUS_EMERGENCY_STOP1:
-		case STATUS_EMERGENCY_STOP2:
-		case STATUS_EMERGENCY_STOP3:
-		case STATUS_EMERGENCY_STOP4:
-		case STATUS_SYSTEM_PAUSE:
-		case STATUS_SYSTEM_RESUME:
-		case STATUS_SYSTEM_HALT:
-		case STATUS_SYSTEM_RESET:
-		case STATUS_SYSEX_START:
-			printString("Not implemented");
-			break;
-		default:
-			printString("Unknown event %#x", event[3]);
-			break;
-	}
+uint8_t encodePinMode(uint8_t *result, uint8_t pin, uint8_t mode) {
+	return 0;
+}
+
+uint8_t encodeDigitalPortData(uint8_t *result, uint8_t port, uint8_t value) {
+	return 0;
+}
+
+uint8_t encodeDigitalPinData(uint8_t *result, uint8_t pin, uint8_t value) {
+	return 0;
+}
+
+uint8_t encodeAnalogPinData(uint8_t *result, uint8_t pin, uint8_t value) {
+	return 0;
+}
+
+uint8_t encodeDigitalPortReport(uint8_t *result, uint8_t port, uint8_t value) {
+	return 0;
+}
+
+uint8_t encodeDigitalPinReport(uint8_t *result, uint8_t pin, uint8_t value) {
+	return 0;
+}
+
+uint8_t encodeAnalogPinReport(uint8_t *result, uint8_t pin, uint8_t value) {
+	return 0;
+}
+
+uint8_t encodeMicrostampReport(uint8_t *result, uint32_t us) {
+	return 0;
+}
+
+uint8_t encodeTimestampReport(uint8_t *result, uint16_t s) {
+	return 0;
+}
+
+uint8_t encodeCongestionReport(uint8_t *result, uint8_t lag) {
+	return encodeEvent(STATUS_CONGESTION_REPORT, lag, NULL, result);
+}
+
+uint8_t encodeVersionReport(uint8_t *result) {
+	uint8_t byte = PROTOCOL_VERSION_MINOR;
+	return encodeEvent(STATUS_VERSION_REPORT, PROTOCOL_VERSION_MAJOR, &byte, result);
+}
+
+uint8_t encodeInterrupt(uint8_t *result) {
+	return 0;
+}
+
+uint8_t encodeEncodingSwitch(uint8_t *result, uint8_t proto) {
+	return encodeEvent(STATUS_ENCODING_SWITCH, proto, NULL, result);
+}
+
+uint8_t encodeEmergencyStop1(uint8_t *result) {
+	return 0;
+}
+
+uint8_t encodeEmergencyStop2(uint8_t *result) {
+	return 0;
+}
+
+uint8_t encodeEmergencyStop3(uint8_t *result) {
+	return 0;
+}
+
+uint8_t encodeEmergencyStop4(uint8_t *result) {
+	return 0;
+}
+
+uint8_t encodeSystemPause(uint8_t *result, uint16_t delay) {
+	return 0;
+}
+
+uint8_t encodeSystemResume(uint8_t *result, uint16_t delay) {
+	return 0;
+}
+
+uint8_t encodeHalt(uint8_t *result) {
+	return 0;
+}
+
+uint8_t encodeReset(uint8_t *result) {
+	return 0;
+}
+
+uint8_t encodeSysex(uint8_t *result, uint8_t argc, uint8_t *argv) {
+	return encodeEvent(STATUS_SYSEX_START, argc, argv, result);
 }
 

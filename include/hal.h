@@ -1,4 +1,3 @@
-
 #ifndef HAL_H
 #define HAL_H
 
@@ -10,6 +9,12 @@ extern "C" {
 #include <stdio.h> // for size_t
 #include <hal/arch.h>
 #include <hal/board.h>
+
+#ifdef __GIT_REVPARSE__
+#define RELEASE_HAL __GIT_REVPARSE__
+#else
+#error "Please add __GITREVPARSE__ define to your compiler command line."
+#endif
 
 	// in-use pins status, array index is the pin number
 	typedef struct pin_status_s {

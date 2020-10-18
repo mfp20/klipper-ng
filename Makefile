@@ -83,7 +83,7 @@ OBJS_FW		:=
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o)
 
 # flags
-CFLAGS  = -fPIC $(INCLUDE) -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ 
+CFLAGS  = -fPIC $(INCLUDE) -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ -D__GIT_REVPARSE__=$(shell git rev-parse --short HEAD)
 LDFLAGS = -L$(DIR_OBJ) -pthread -lutil -lm -lrt
 
 # targets
