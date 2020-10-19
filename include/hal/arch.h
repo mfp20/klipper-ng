@@ -10,8 +10,8 @@ extern "C" {
 #include <stdio.h>
 #include <stdbool.h>
 #include <inttypes.h>
-#include <utility/bitops.h>
-#include <hal/defines.h>
+#include <utility/macros.h>
+#include <hal/platform.h>
 
 #ifdef __GIT_REVPARSE__
 #define RELEASE_ARCH __GIT_REVPARSE__

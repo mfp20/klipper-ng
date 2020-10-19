@@ -5,10 +5,11 @@
 extern "C" {
 #endif
 
-#include <inttypes.h> // for uint8_t
-#include <stdio.h> // for size_t
+#include <utility/macros.h>
 #include <hal/arch.h>
 #include <hal/board.h>
+#include <inttypes.h> // for uint8_t
+#include <stdio.h> // for size_t
 
 #ifdef __GIT_REVPARSE__
 #define RELEASE_HAL __GIT_REVPARSE__

@@ -1,11 +1,6 @@
 #ifndef HAL_DEFINES_H
 #define HAL_DEFINES_H
 
-// WARNING WARNING WARNING comment out this line before release compile
-// the proper value is set in the makefile
-// it is here because my vim inline debugger is a pain in the ass
-#define __GIT_REVPARSE__ 123
-
 #ifdef __GIT_REVPARSE__
 #define RELEASE_DEFINES __GIT_REVPARSE__
 #else
@@ -176,6 +171,13 @@
 #define COMMPORT_ERROR_DATAOVR			2 // Data OverRun (DORn)
 #define COMMPORT_ERROR_PARITY			3 // Parity Error (UPEn)
 #define COMMPORT_ERROR_BUFOVF			4 // Buffer overflow
+
+#define MSB(a) \
+	({ __typeof__ (a) _a = (a); \
+	_a >> 8; })
+#define LSB(a) \
+	({ __typeof__ (a) _a = (a); \
+	_a & 0x00FF; })
 
 #endif // HAL_DEFINES
 

@@ -7,7 +7,7 @@
 #include <termios.h>	// termios
 #include <pty.h>		// openpty
 #include <fcntl.h>		// fcntl
-#include <sys/ioctl.h>	//ioctl
+#include <sys/ioctl.h>	// ioctl
 #include <sys/stat.h>	// chmod
 #include <stdio.h>		// sprintf
 #include <string.h>		// memset, strcopy
@@ -78,13 +78,11 @@ static uint16_t timer_dummyload_1us = 540;
 static double timer_cdiff=4000, timer_ndiff=1000, timer_avg=4.20;
 static void * _timer_thread(void * data) {
 	int cstart, cend, bogo = 0;
-	uint64_t nstart, nend;
+	uint64_t nstart, nend, ndiff;
 	while(1) {
-		cstart = ticks();
 		nstart = ns();
-		// set new time values
 		pthread_mutex_lock(&timer_lock);
-		tnano = tnano + ((uint16_t)(timer_cdiff/timer_avg));
+		tnano = tnano + ((uint16_t)ndiff);
 		tmicro = tmicro + tnano/1000;
 		tmilli = tmilli + tmicro/1000;
 		tsecond = tsecond + tmilli/1000;
@@ -92,15 +90,7 @@ static void * _timer_thread(void * data) {
 		tmicro = tmicro % 1000;
 		tnano = tnano % 1000;
 		pthread_mutex_unlock(&timer_lock);
-		//
-		for (int i = 0;i<timer_dummyload_1us;i++) bogo+=bogo;
-		nend = ns();
-		cend = ticks();
-		timer_ndiff = nend-nstart;
-		timer_cdiff = cend-cstart;
-		pthread_mutex_lock(&timer_lock);
-		timer_avg = (timer_avg+(timer_cdiff/timer_ndiff))/2;
-		pthread_mutex_unlock(&timer_lock);
+		ndiff = ns()-nstart;
 	}
 	data = 0; // unused parameter
 	free(data);

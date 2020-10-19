@@ -1,20 +1,28 @@
 
 #include <protocol.h>
 #include <stdlib.h> // for malloc
+#include <stdio.h>	// sprintf
+
+uint8_t pins[16];
+uint8_t group[4][16];
+
+// message handling
+static uint8_t waitForData = 0;
+static uint8_t waitForCRC = 0;
+uint8_t eventBuffer[PROTOCOL_MAX_EVENT_BYTES];
+uint8_t eventSize = 0;
+uint8_t sequenceId = 0;
+uint8_t protocolDebug = 1;
+uint8_t protocolErrors[PROTOCOL_ERR_TOTAL];
+uint8_t protocolErrorNo = 0;
 
 // callback functions
 cbf_eval_t cbEvalEnc = NULL;
 cbf_coder_t cbEncoder = NULL;
 cbf_eval_t cbEvalDec = NULL;
 cbf_coder_t cbDecoder = NULL;
-
-// message handling
-static uint8_t waitForData = 0;
-static uint8_t waitForCRC = 0;
-static uint8_t protocolErrors = 0;
-uint8_t eventBuffer[PROTOCOL_MAX_EVENT_BYTES];
-uint8_t eventSize = 0;
-uint16_t deltaTime = 0;
+cbf_data_t customHandler = NULL;
+cbf_signal_t protocolSignal = NULL;
 
 // CRC-8 - Dallas/Maxim
 static uint8_t CRC8(uint8_t len, const uint8_t *data) {
@@ -155,25 +163,43 @@ uint8_t encodingSwitch(uint8_t proto) {
 	return proto;
 }
 
+void decodeErr(uint8_t code) {
+	bufferReset();
+	if (protocolDebug) {
+		protocolErrorNo++;
+		protocolErrors[code]++;
+		if (protocolSignal) protocolSignal(SIG_DISCARD,sequenceId);
+	}
+}
+
 uint8_t decodeEvent(uint8_t *byte, uint8_t size, uint8_t *event) {
 	if (event == NULL) {
 		size = eventSize;
 		event = eventBuffer;
 	}
-	if(waitForCRC) {
+	if(waitForCRC) { // event complete but CRC byte missing
+		if (size<6) { // size must be bigger than minimum event size
+			decodeErr(PROTOCOL_ERR_SIZE);
+			return 0;
+		}
 		waitForCRC = 0;
 		if (*byte==CRC8(size, event)) {
-			// TODO cbDecode
-			// signal the completed event
+			if (event[3] == STATUS_SYSEX_START) {
+				cbDecoder(&event[3], size-2, event); // decode data bytes in place
+			}
+			// completed event goes live!
 			return size;
 		} else {
-			bufferReset();
-			protocolErrors++;
+			decodeErr(PROTOCOL_ERR_CRC);
 			return 0;
 		}
 	} else if(waitForData) { // need more data to complete the current event
-		switch (event[1+PROTOCOL_TICK_BYTES]) {
+		switch (event[2]) {
 			case STATUS_SYSEX_START:
+				if (size>3) { // size must be bigger than sequenceId header size
+					decodeErr(PROTOCOL_ERR_SIZE);
+					return 0;
+				}
 				if (*byte == STATUS_SYSEX_END) {
 					waitForData = 0;
 					waitForCRC = 1;
@@ -183,8 +209,7 @@ uint8_t decodeEvent(uint8_t *byte, uint8_t size, uint8_t *event) {
 				} else {
 					// MSb must be 0 because those must be data bytes (ie: byte value <= 127)
 					if (*byte>0x80) {
-						bufferReset();
-						protocolErrors++;
+						decodeErr(PROTOCOL_ERR_NEED_DATA);
 						return 0;
 					}
 					// normal data byte -> add to buffer
@@ -193,41 +218,41 @@ uint8_t decodeEvent(uint8_t *byte, uint8_t size, uint8_t *event) {
 					return 0;
 				}
 				break;
-			case STATUS_INTERRUPT:
-			case STATUS_UNUSED_F8:
-			case STATUS_UNUSED_F9:
-			case STATUS_UNUSED_FA:
-			case STATUS_SYSTEM_HALT:
-			case STATUS_SYSTEM_RESET:
-				// MSb must be 1 because those commands don't have data
-				// and all bytes must be equal (transmit error detection)
-				if ((*byte<0x80)||(*byte!=event[1+PROTOCOL_TICK_BYTES])) {
-					bufferReset();
-					protocolErrors++;
-					return 0;
-				}
-				break;
 			case STATUS_PIN_MODE:
-			case STATUS_DIGITAL_PORT_DATA:
-			case STATUS_DIGITAL_PIN_DATA:
-			case STATUS_ANALOG_PIN_DATA:
 			case STATUS_DIGITAL_PORT_REPORT:
+			case STATUS_DIGITAL_PORT_SET:
 			case STATUS_DIGITAL_PIN_REPORT:
+			case STATUS_DIGITAL_PIN_SET:
 			case STATUS_ANALOG_PIN_REPORT:
-			case STATUS_MICROSTAMP_REPORT:
-			case STATUS_TIMESTAMP_REPORT:
-			case STATUS_CONGESTION_REPORT:
-			case STATUS_VERSION_REPORT:
-			case STATUS_ENCODING_SWITCH:
+			case STATUS_ANALOG_PIN_SET:
+			case STATUS_PROTOCOL_VERSION:
+			case STATUS_PROTOCOL_ENCODING:
+			case STATUS_INFO_REQ:
+			case STATUS_INFO_REP:
+			case STATUS_SIGNAL:
+			case STATUS_INTERRUPT:
 			case STATUS_EMERGENCY_STOP:
 			case STATUS_SYSTEM_PAUSE:
 			case STATUS_SYSTEM_RESUME:
 				// MSb must be 0 because those events have data (ie: byte value <= 127)
 				if (*byte>0x80) {
-					bufferReset();
-					protocolErrors++;
+					decodeErr(PROTOCOL_ERR_NEED_DATA);
 					return 0;
 				}
+				break;
+			case STATUS_SYSTEM_HALT:
+			case STATUS_SYSTEM_RESET:
+				// MSb must be 1 because those commands don't have data
+				// and all bytes must be equal
+				if ((*byte<0x80)||(*byte!=event[2])) {
+					decodeErr(PROTOCOL_ERR_NEED_CTRL);
+					return 0;
+				}
+				break;
+			case STATUS_CUSTOM_F8:
+			case STATUS_CUSTOM_F9:
+			case STATUS_CUSTOM_FA:
+				if (customHandler) customHandler(size, event);
 				break;
 			default:
 				break;
@@ -236,27 +261,28 @@ uint8_t decodeEvent(uint8_t *byte, uint8_t size, uint8_t *event) {
 		waitForData--;
 		event[size] = *byte;
 		size++;
-		if (waitForData == 0) { // got the whole event
+		if (waitForData == 0) { // got the whole event, need CRC
 			waitForCRC = 1;
 		}
-	} else if (size==1+PROTOCOL_TICK_BYTES) { // status bytes start
-		switch (event[1+PROTOCOL_TICK_BYTES]) {
+	} else if (size==2) { // status byte
+		if (*byte<0x80) { // third byte must be control
+			decodeErr(PROTOCOL_ERR_NEED_CTRL);
+			return 0;
+		}
+		switch (event[2]) {
 			case STATUS_PIN_MODE:
-			case STATUS_DIGITAL_PORT_DATA:
-			case STATUS_DIGITAL_PIN_DATA:
-			case STATUS_ANALOG_PIN_DATA:
 			case STATUS_DIGITAL_PORT_REPORT:
+			case STATUS_DIGITAL_PORT_SET:
 			case STATUS_DIGITAL_PIN_REPORT:
+			case STATUS_DIGITAL_PIN_SET:
 			case STATUS_ANALOG_PIN_REPORT:
-			case STATUS_MICROSTAMP_REPORT:
-			case STATUS_TIMESTAMP_REPORT:
-			case STATUS_CONGESTION_REPORT:
-			case STATUS_VERSION_REPORT:
+			case STATUS_ANALOG_PIN_SET:
+			case STATUS_PROTOCOL_VERSION:
+			case STATUS_PROTOCOL_ENCODING:
+			case STATUS_INFO_REQ:
+			case STATUS_INFO_REP:
+			case STATUS_SIGNAL:
 			case STATUS_INTERRUPT:
-			case STATUS_ENCODING_SWITCH:
-			case STATUS_UNUSED_F8:
-			case STATUS_UNUSED_F9:
-			case STATUS_UNUSED_FA:
 			case STATUS_EMERGENCY_STOP:
 			case STATUS_SYSTEM_PAUSE:
 			case STATUS_SYSTEM_RESUME:
@@ -267,123 +293,204 @@ uint8_t decodeEvent(uint8_t *byte, uint8_t size, uint8_t *event) {
 			case STATUS_SYSEX_START:
 				waitForData = 1; // more data needed
 				break;
+			case STATUS_CUSTOM_F8:
+			case STATUS_CUSTOM_F9:
+			case STATUS_CUSTOM_FA:
+				if (customHandler) customHandler(size, event);
+				break;
 			default:
-				bufferReset();
-				protocolErrors++;
+				decodeErr(PROTOCOL_ERR_EVENT_UNKNOWN);
 				return 0;
 				break;
 		}
 		event[0] = *byte;
 		size = 1;
-	} else if (size>0 && size<1+PROTOCOL_TICK_BYTES) {  // delta time bytes
-		if (*byte>0x80) {
-			bufferReset();
-			protocolErrors++;
+	} else if (size==1) {  // sequence id
+		if (*byte>0x80) { // second byte must be data
+			decodeErr(PROTOCOL_ERR_NEED_DATA);
 			return 0;
 		}
 		event[size]=*byte;
 		size++;
 	} else { // new event start
-		if (*byte == 255) {
+		if (*byte == 0xFF) { // first byte must be 0xFF
 			size = 0;
 			event[size] = *byte;
 			size++;
+		} else {
+			decodeErr(PROTOCOL_ERR_START);
+			return 0;
 		}
 	}
 	return 0;
 }
 
 uint8_t encodeEvent(uint8_t cmd, uint8_t argc, uint8_t *argv, uint8_t *event) {
-	uint8_t count = 1+PROTOCOL_TICK_BYTES;
-	uint8_t start = count;
-	uint8_t datasize;
+	uint8_t count = 2; // sequence id size
+	uint8_t datastart = count;
+	uint8_t datasize = 2;
 	switch (cmd) {
-		case STATUS_INTERRUPT: // events without data repeat the status byte in all the 3 bytes
-		case STATUS_UNUSED_F8:
-		case STATUS_UNUSED_F9:
-		case STATUS_UNUSED_FA:
-		case STATUS_EMERGENCY_STOP:
-		case STATUS_SYSTEM_HALT:
-		case STATUS_SYSTEM_RESET:
+		case STATUS_PIN_MODE: // events with channel id and 2 bytes of data
+		case STATUS_DIGITAL_PORT_REPORT:
+		case STATUS_DIGITAL_PORT_SET:
+		case STATUS_DIGITAL_PIN_REPORT:
+		case STATUS_DIGITAL_PIN_SET:
+		case STATUS_ANALOG_PIN_REPORT:
+		case STATUS_ANALOG_PIN_SET:
+			printf("%x %x %x %x\n", cmd, argc, argv[0], argv[1]);
 			count += 4;
-			event = (uint8_t*)calloc(count,sizeof(uint8_t));
 			event[0] = 255;
-			event[1] = (uint8_t)(deltaTime & 0x00FF); // LSB
-			event[2] = (uint8_t)(deltaTime & 0xFF00); // MSB
-			event[start] = cmd;
-			event[start+1] = cmd;
-			event[start+2] = cmd;
-			event[count-1] = CRC8(count,event);
-			return count;
+			event[1] = (uint8_t)(sequenceId & 0xFF00); // MSB
+			event[2] = (uint8_t)(sequenceId & 0x00FF); // LSB
+			event[datastart] = (cmd & 0xF0) + (argc & 0x0F); // MSB=status + LSB=pin or port, bits are zeroed to prevent wrong input value
+			event[datastart+1] = argv[0];
+			event[datastart+2] = argv[1];
 			break;
-		case STATUS_PIN_MODE: // events with 1 or 2 bytes of data
-		case STATUS_MICROSTAMP_REPORT:
-		case STATUS_TIMESTAMP_REPORT:
-		case STATUS_CONGESTION_REPORT:
-		case STATUS_VERSION_REPORT:
-		case STATUS_ENCODING_SWITCH:
+		case STATUS_PROTOCOL_VERSION: // events with 1-2 bytes of data (repeat che status byte in the 2nd in case of single data byte)
+		case STATUS_PROTOCOL_ENCODING:
+		case STATUS_INFO_REQ:
+		case STATUS_INFO_REP:
+		case STATUS_SIGNAL:
+		case STATUS_INTERRUPT:
+		case STATUS_EMERGENCY_STOP:
 		case STATUS_SYSTEM_PAUSE:
 		case STATUS_SYSTEM_RESUME:
 			count += 4;
-			event = (uint8_t*)realloc(event,count*sizeof(uint8_t));
 			event[0] = (uint8_t)255;
-			event[1] = (uint8_t)(deltaTime & 0x00FF); // LSB
-			event[2] = (uint8_t)(deltaTime & 0xFF00); // MSB
-			event[start] = cmd;
-			event[start+1] = argc;
-			event[start+2] = *argv;
-			event[count-1] = CRC8(count,event);
-			return count;
+			event[1] = (uint8_t)(sequenceId & 0xFF00); // MSB
+			event[2] = (uint8_t)(sequenceId & 0x00FF); // LSB
+			event[datastart] = cmd;
+			event[datastart+1] = argc;
+			if (argv) event[datastart+2] = *argv; else event[datastart+2] = cmd;
 			break;
-		case STATUS_DIGITAL_PORT_DATA: // events with channel id and 2 bytes of data
-		case STATUS_DIGITAL_PIN_DATA:
-		case STATUS_ANALOG_PIN_DATA:
-		case STATUS_DIGITAL_PORT_REPORT:
-		case STATUS_DIGITAL_PIN_REPORT:
-		case STATUS_ANALOG_PIN_REPORT:
+		case STATUS_SYSTEM_HALT: // events without any data
+		case STATUS_SYSTEM_RESET:
 			count += 4;
-			event = (uint8_t*)calloc(count,sizeof(uint8_t));
 			event[0] = 255;
-			event[1] = (uint8_t)(deltaTime & 0x00FF); // LSB
-			event[2] = (uint8_t)(deltaTime & 0xFF00); // MSB
-			// MSB=status + LSB=pin or port, bits are zeroed to prevent wrong input value
-			event[start] = (cmd & 0b11110000) + (argc & 0b00001111);
-			event[start+1] = argv[0];
-			event[start+2] = argv[1];
-			event[count-1] = CRC8(count,event);
-			return count;
+			event[1] = (uint8_t)(sequenceId & 0xFF00); // MSB
+			event[2] = (uint8_t)(sequenceId & 0x00FF); // LSB
+			event[datastart] = cmd;
+			event[datastart+1] = cmd;
+			event[datastart+2] = cmd;
 			break;
-		case STATUS_SYSEX_START: // sysex events
+		case STATUS_SYSEX_START: // sysex events 1+ bytes of data, realtime events, extended sysex, ...
 			datasize += cbEvalEnc(argc-2);
-			count += datasize+1;
-			event = (uint8_t*)calloc(count,sizeof(uint8_t));
+			count += 1+datasize+2;
 			event[0] = 255;
-			event[1] = (uint8_t)(deltaTime & 0x00FF); // LSB
-			event[2] = (uint8_t)(deltaTime & 0xFF00); // MSB
-			event[start] = cmd; // sysex start
-			event[start+1] = argv[0]; // mod byte
-			event[start+2] = argv[1]; // sysex id
-			cbEncoder(&argv[2], datasize, &event[start+3]);
+			event[1] = (uint8_t)(sequenceId & 0xFF00); // MSB
+			event[2] = (uint8_t)(sequenceId & 0x00FF); // LSB
+			event[datastart] = cmd; // sysex start
+			cbEncoder(argv, datasize, &event[datastart+1]);
 			event[count-2] = STATUS_SYSEX_END;
-			switch(argv[0]) {
-				case SYSEX_MOD_EXTEND:
-					// TODO call extended sysex handler
-					break;
-				case SYSEX_MOD_REALTIME:
-					// TODO call realtime sysex handler
-					break;
-				default:
-					// normal, non-realtime, sysex
-					event[count-2] = CRC8(count-1,event);
-					return count;
-					break;
-			}
+			break;
+		default:
+			// TODO wrong event
+			return 0;
 			break;
 	}
+	event[count-1] = CRC8(count,event);
+	sequenceId++;
+	return count;
+}
+
+uint8_t encodePinMode(uint8_t *result, uint8_t pin, uint8_t mode) {
+	return encodeEvent(STATUS_PIN_MODE, pin, &mode, result);
+}
+
+uint8_t encodeReportDigitalPort(uint8_t *result, uint8_t port) {
+	uint8_t bytes[2];
+	//bytes[0] = MSB(value); TODO
+	//bytes[1] = LSB(value);
+	return encodeEvent(STATUS_DIGITAL_PORT_REPORT, port, bytes, result);
+}
+
+uint8_t encodeSetDigitalPort(uint8_t *result, uint8_t port, uint8_t value) {
+	uint8_t bytes[2];
+	//bytes[0] = MSB(value); TODO
+	//bytes[1] = LSB(value);
+	return encodeEvent(STATUS_DIGITAL_PORT_SET, port, bytes, result);
+}
+
+uint8_t encodeReportDigitalPin(uint8_t *result, uint8_t pin) {
+	uint8_t bytes[2];
+	//bytes[0] = MSB(value); TODO
+	//bytes[1] = LSB(value);
+	return encodeEvent(STATUS_DIGITAL_PIN_REPORT, pin, bytes, result);
+}
+
+uint8_t encodeSetDigitalPin(uint8_t *result, uint8_t pin, uint8_t value) {
+	uint8_t bytes[2];
+	//bytes[0] = MSB(value); TODO
+	//bytes[1] = LSB(value);
+	return encodeEvent(STATUS_DIGITAL_PIN_SET, pin, bytes, result);
+}
+
+uint8_t encodeReportAnalogPin(uint8_t *result, uint8_t pin) {
+	uint8_t bytes[2];
+	//bytes[0] = MSB(value); TODO
+	//bytes[1] = LSB(value);
+	return encodeEvent(STATUS_ANALOG_PIN_REPORT, pin, bytes, result);
+}
+
+uint8_t encodeSetAnalogPin(uint8_t *result, uint8_t pin, uint8_t value) {
+	uint8_t bytes[2];
+	//bytes[0] = MSB(value); TODO
+	//bytes[1] = LSB(value);
+	return encodeEvent(STATUS_ANALOG_PIN_SET, pin, bytes, result);
+}
+
+uint8_t encodeProtocolVersion(uint8_t *result) {
+	uint8_t byte = PROTOCOL_VERSION_MINOR;
+	return encodeEvent(STATUS_PROTOCOL_VERSION, PROTOCOL_VERSION_MAJOR, &byte, result);
+}
+
+uint8_t encodeProtocolEncoding(uint8_t *result, uint8_t proto) {
+	return encodeEvent(STATUS_PROTOCOL_ENCODING, proto, NULL, result);
+}
+
+uint8_t encodeInfoReq(uint8_t *result, uint8_t info) {
+	return encodeEvent(STATUS_INFO_REQ, info, NULL, result);
+}
+
+uint8_t encodeInfoRep(uint8_t *result, uint8_t info, uint8_t value) {
+	return encodeEvent(STATUS_INFO_REP, info, &value, result);
+}
+
+uint8_t encodeSignal(uint8_t *result, uint8_t key, uint8_t value) {
+	return encodeEvent(STATUS_SIGNAL, key, &value, result);
+}
+
+uint8_t encodeInterrupt(uint8_t *result, uint8_t key, uint8_t value) {
+	return encodeEvent(STATUS_INTERRUPT, key, &value, result);
+}
+
+uint8_t encodeEmergencyStop(uint8_t *result, uint8_t group) {
+	return encodeEvent(STATUS_EMERGENCY_STOP, group, NULL, result);
+}
+
+uint8_t encodeSystemPause(uint8_t *result, uint16_t delay) {
+	// TODO
 	return 0;
 }
 
-uint8_t encodeTask(task_t *task, uint8_t error, uint8_t *event) {
+uint8_t encodeSystemResume(uint8_t *result, uint16_t time) {
+	// TODO
+	return 0;
+}
+
+uint8_t encodeSystemHalt(uint8_t *result) {
+	return encodeEvent(STATUS_SYSTEM_HALT, 0, NULL, result);
+}
+
+uint8_t encodeSystemReset(uint8_t *result) {
+	return encodeEvent(STATUS_SYSTEM_RESET, 0, NULL, result);
+}
+
+uint8_t encodeSysex(uint8_t *result, uint8_t argc, uint8_t *argv) {
+	return encodeEvent(STATUS_SYSEX_START, argc, argv, result);
+}
+
+uint8_t encodeTask(uint8_t *result, task_t *task, uint8_t error) {
 	uint8_t tasklen;
 	uint8_t *data;
 	if (error) {
@@ -403,95 +510,6 @@ uint8_t encodeTask(task_t *task, uint8_t error, uint8_t *event) {
 			data[i] = ((uint8_t *)task)[i];
 		}
 	}
-	return encodeEvent(STATUS_SYSEX_START, 3+tasklen, data, event);
-}
-
-uint8_t encodePinMode(uint8_t *result, uint8_t pin, uint8_t mode) {
-	return 0;
-}
-
-uint8_t encodeDigitalPortData(uint8_t *result, uint8_t port, uint8_t value) {
-	return 0;
-}
-
-uint8_t encodeDigitalPinData(uint8_t *result, uint8_t pin, uint8_t value) {
-	return 0;
-}
-
-uint8_t encodeAnalogPinData(uint8_t *result, uint8_t pin, uint8_t value) {
-	return 0;
-}
-
-uint8_t encodeDigitalPortReport(uint8_t *result, uint8_t port, uint8_t value) {
-	return 0;
-}
-
-uint8_t encodeDigitalPinReport(uint8_t *result, uint8_t pin, uint8_t value) {
-	return 0;
-}
-
-uint8_t encodeAnalogPinReport(uint8_t *result, uint8_t pin, uint8_t value) {
-	return 0;
-}
-
-uint8_t encodeMicrostampReport(uint8_t *result, uint32_t us) {
-	return 0;
-}
-
-uint8_t encodeTimestampReport(uint8_t *result, uint16_t s) {
-	return 0;
-}
-
-uint8_t encodeCongestionReport(uint8_t *result, uint8_t lag) {
-	return encodeEvent(STATUS_CONGESTION_REPORT, lag, NULL, result);
-}
-
-uint8_t encodeVersionReport(uint8_t *result) {
-	uint8_t byte = PROTOCOL_VERSION_MINOR;
-	return encodeEvent(STATUS_VERSION_REPORT, PROTOCOL_VERSION_MAJOR, &byte, result);
-}
-
-uint8_t encodeInterrupt(uint8_t *result) {
-	return 0;
-}
-
-uint8_t encodeEncodingSwitch(uint8_t *result, uint8_t proto) {
-	return encodeEvent(STATUS_ENCODING_SWITCH, proto, NULL, result);
-}
-
-uint8_t encodeEmergencyStop1(uint8_t *result) {
-	return 0;
-}
-
-uint8_t encodeEmergencyStop2(uint8_t *result) {
-	return 0;
-}
-
-uint8_t encodeEmergencyStop3(uint8_t *result) {
-	return 0;
-}
-
-uint8_t encodeEmergencyStop4(uint8_t *result) {
-	return 0;
-}
-
-uint8_t encodeSystemPause(uint8_t *result, uint16_t delay) {
-	return 0;
-}
-
-uint8_t encodeSystemResume(uint8_t *result, uint16_t delay) {
-	return 0;
-}
-
-uint8_t encodeHalt(uint8_t *result) {
-	return 0;
-}
-
-uint8_t encodeReset(uint8_t *result) {
-	return 0;
-}
-
-uint8_t encodeSysex(uint8_t *result, uint8_t argc, uint8_t *argv) {
-	return encodeEvent(STATUS_SYSEX_START, argc, argv, result);
+	return encodeSysex(result, 3+tasklen, data);
 }
 

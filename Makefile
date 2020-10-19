@@ -12,10 +12,6 @@
 # 
 
 BOARD ?= simulinux
-ifeq ($(BOARD),hostlinux)
-	MCU=x86
-	CROSS_COMPILE=
-endif
 ifeq ($(BOARD),simulinux)
 	MCU=bogus
 	CROSS_COMPILE=
@@ -43,6 +39,10 @@ endif
 ifeq ($(BOARD),mksgenl)
 	MCU=atmega2560
 	CROSS_COMPILE=avr-
+endif
+ifeq ($(BOARD),hostlinux)
+	MCU=x86
+	CROSS_COMPILE=
 endif
 MCU ?= x86
 CROSS_COMPILE ?=
@@ -83,8 +83,12 @@ OBJS_FW		:=
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o)
 
 # flags
-CFLAGS  = -fPIC $(INCLUDE) -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ -D__GIT_REVPARSE__=$(shell git rev-parse --short HEAD)
-LDFLAGS = -L$(DIR_OBJ) -pthread -lutil -lm -lrt
+CFLAGS  = -fPIC \
+	  -D__GIT_REVPARSE__=0x$(shell git rev-parse --short HEAD) \
+	  -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ \
+	  -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ \
+	  $(INCLUDE)
+LDFLAGS = -pthread -lutil -lm -lrt
 
 # targets
 TARGET_HAL	:= $(DIR_OBJ)/libhal.$(BOARD).a
@@ -108,7 +112,7 @@ help:
 	@echo "to build the firmware for Melzi board."
 	@echo "WARNING: currently Linux simulator is the only supported board."
 
-all: build hal proto lib fw host
+all: build hal proto lib fw py host
 hal: build $(TARGET_HAL)
 proto: build $(TARGET_PROTO)
 lib: build $(TARGET_LIB)
@@ -117,19 +121,19 @@ host: build $(TARGET_HOST)
 
 $(DIR_OBJ)/src/hal/arch.$(BOARD).o: src/hal/arch_$(MCU).c
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(DIR_OBJ)/src/hal/board.$(BOARD).o: src/hal/board_$(BOARD).c
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(DIR_OBJ)/src/hal.$(BOARD).o: src/hal.c
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(DIR_OBJ)/%.$(BOARD).o: %.c
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $< -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(TARGET_HAL): $(OBJS_HAL)
 	@mkdir -p $(@D)
@@ -141,16 +145,16 @@ $(TARGET_PROTO): $(OBJS_PROTO)
 
 $(TARGET_LIB): $(TARGET_HAL) $(TARGET_PROTO)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c src/libknp.c -o $(DIR_OBJ)/src/libknp.$(BOARD).o $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(DIR_OBJ)/src/libknp.$(BOARD).o -c src/libknp.c 
 	$(AR) rcs $(TARGET_LIB) $(OBJS_HAL) $(OBJS_PROTO) $(OBJS_LIB)
 
 $(TARGET_FW): $(TARGET_LIB)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $(TARGET_FW) $(SRCS_FW) $(LDFLAGS) -l:libknp.$(BOARD).a
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET_FW) $(SRCS_FW) -L$(DIR_OBJ) -l:libknp.$(BOARD).a
 
 $(TARGET_HOST): py $(OBJS_HOST)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $(DIR_APP)/$(TARGET_HOST) $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(DIR_APP)/$(TARGET_HOST) $^ 
 
 .PHONY: all build clean debug release
 
