@@ -1,6 +1,12 @@
 #ifndef HAL_ARCH_H
 #define HAL_ARCH_H
 
+#ifdef __GIT_REVPARSE__
+#define RELEASE_ARCH __GIT_REVPARSE__
+#else
+#error "Please add __GITREVPARSE__ define to your compiler command line."
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -10,14 +16,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdbool.h>
 #include <inttypes.h>
-#include <utility/macros.h>
 #include <hal/platform.h>
-
-#ifdef __GIT_REVPARSE__
-#define RELEASE_ARCH __GIT_REVPARSE__
-#else
-#error "Please add __GITREVPARSE__ define to your compiler command line."
-#endif
 
 // TYPEDEFs
 

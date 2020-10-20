@@ -1,6 +1,12 @@
 #ifndef HAL_H
 #define HAL_H
 
+#ifdef __GIT_REVPARSE__
+#define RELEASE_HAL __GIT_REVPARSE__
+#else
+#error "Please add __GITREVPARSE__ define to your compiler command line."
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -8,14 +14,8 @@ extern "C" {
 #include <utility/macros.h>
 #include <hal/arch.h>
 #include <hal/board.h>
-#include <inttypes.h> // for uint8_t
-#include <stdio.h> // for size_t
-
-#ifdef __GIT_REVPARSE__
-#define RELEASE_HAL __GIT_REVPARSE__
-#else
-#error "Please add __GITREVPARSE__ define to your compiler command line."
-#endif
+#include <inttypes.h>	// for uint8_t
+#include <stdio.h>		// for size_t
 
 	typedef struct pin_status_s {
 		volatile uint8_t mode; // refer to protocol for known modes

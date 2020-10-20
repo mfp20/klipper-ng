@@ -7,6 +7,8 @@
 #error "Please add __GITREVPARSE__ define to your compiler command line."
 #endif
 
+#include <utility/macros.h>
+
 //
 // MCUs
 //

@@ -1,21 +1,20 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <utility/macros.h>
-#include <protocol_custom.h>
-#include <stddef.h>
-#include <inttypes.h>
-#include <stdbool.h>
-
 #ifdef __GIT_REVPARSE__
 #define RELEASE_PROTOCOL __GIT_REVPARSE__
 #else
 #error "Please add __GITREVPARSE__ define to your compiler command line."
 #endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <utility/macros.h>
+#include <stddef.h>
+#include <inttypes.h>
+#include <stdbool.h>
 
 /*
 The protocol mimics the MIDI protocol. Each byte of the MIDI byte stream
@@ -52,7 +51,7 @@ Example common event:
 
 Example sysex event:
 
-			[0xFD][0x00][0xFF][0x7E][0x07][0x01][0xFE] (second message in sequence, send string "1")
+			[0xFD][0x00][0xFF][0x7D][0x07][0x01][0xFE] (second message in sequence, send string "1")
 
 Protocol users can customize it using both the 0xF5-0xF8 common event codes (for short&fast messages) and
 the 'extended sysex' own codes. Just write your defines and helper methods in protocol_custom.h,
@@ -115,22 +114,24 @@ Errors are detailed in protocolErrors to improve diagnostics.
 #define PROTOCOL_ENCODING_REPORT	127
 
 // 1-byte infos codes
-#define INFO_JITTER	1
+//#define INFO_	0
 
 // 1-byte signal codes
-#define SIG_JITTER	1 // last tick finished in late (ie: developer is underachieving / MCU is too tiny / too much work)
+#define SIG_JITTER	0 // last tick finished in late (ie: developer is underachieving / MCU is too tiny / too much work)
 #define SIG_DISCARD	1 // received bytes discarded (ie: protocol error)
 
 // 0xxxxxxx: sysex using data messages (0-127/0x00-0x7F)
 // 0x00-0x1F: DATA
-#define SYSEX_DIGITAL_PIN_DATA		0x00 // get/set any value to any pin
-#define SYSEX_ANALOG_PIN_DATA		0x01 // get/set and specify the analog reference source and R/W resolution
-#define SYSEX_ONEWIRE_DATA			0x02 // 1WIRE communication (see related sub commands)
-#define SYSEX_UART_DATA				0x03 // UART communication (see related sub commands)
-#define SYSEX_I2C_DATA				0x04 // I2C communication (see related sub commands)
-#define SYSEX_SPI_DATA				0x05 // SPI communication (see related sub commands)
-#define SYSEX_STRING_DATA			0x06 // encoded string (see related sub commands)
-#define SYSEX_SCHEDULER_DATA		0x07 // scheduler request (see related sub commands)
+#define SYSEX_PREFERRED_PINS_DATA	0x00 // get/set preferred pins
+#define SYSEX_PINGROUPS_DATA		0x01 // get/set pin groups
+#define SYSEX_DIGITAL_PIN_DATA		0x02 // get/set any value to any pin
+#define SYSEX_ANALOG_PIN_DATA		0x03 // get/set and specify the analog reference source and R/W resolution
+#define SYSEX_ONEWIRE_DATA			0x04 // 1WIRE communication (see related sub commands)
+#define SYSEX_UART_DATA				0x05 // UART communication (see related sub commands)
+#define SYSEX_I2C_DATA				0x06 // I2C communication (see related sub commands)
+#define SYSEX_SPI_DATA				0x07 // SPI communication (see related sub commands)
+#define SYSEX_STRING_DATA			0x08 // encoded string (see related sub commands)
+#define SYSEX_SCHEDULER_DATA		0x09 // scheduler request (see related sub commands)
 // 0x20-0x3F: REPORT
 #define SYSEX_DIGITAL_PIN_REPORT	0x20 // report of ANY digital input pins
 #define SYSEX_ANALOG_PIN_REPORT		0x21 // report of ANY analog input pins
@@ -143,15 +144,15 @@ Errors are detailed in protocolErrors to improve diagnostics.
 #define SYSEX_PINMAP_REP			0x43 // reply with mapping info
 #define SYSEX_PINSTATE_REQ			0x44 // ask for a pin's current mode and value
 #define SYSEX_PINSTATE_REP			0x45 // reply with pin's current mode and value
-#define SYSEX_DEVICE_REQ			0x46 // PROPOSED: Generic Device Driver RPC
-#define SYSEX_DEVICE_REP			0x47 // PROPOSED: Generic Device Driver RPC
-#define SYSEX_RCSWITCH_IN			0x48 // PROPOSED: bridge to RCSwitch Arduino library
-#define SYSEX_RCSWITCH_OUT			0x49 // PROPOSED: bridge to RCSwitch Arduino library
-// 0x60-0x6F reserved for user-defined commands
+#define SYSEX_DEVICE_REQ			0x46 // generic device driver RPC request
+#define SYSEX_DEVICE_REP			0x47 // generic device driver RPC reply
+#define SYSEX_RCSWITCH_IN			0x48 // bridge to RCSwitch Arduino library
+#define SYSEX_RCSWITCH_OUT			0x49 // bridge to RCSwitch Arduino library
+// 0x60-0x6F reserved for later use
 // 0x70-0x7F sysex modifier
-#define SYSEX_MOD_EXTEND			0x70 // sysex extension, the next 2 bytes define the extended ID
-#define SYSEX_MOD_NON_REALTIME		0x7E // MIDI Reserved for non-realtime messages
-#define SYSEX_MOD_REALTIME			0x7F // MIDI Reserved for realtime messages
+#define SYSEX_MOD_ASYNC				0x7D // asyncronous message: it doesn't wait for the other side to answer
+#define SYSEX_MOD_SYNC				0x7E // sync message: it waits for the other side to answer
+#define SYSEX_MOD_EXTEND			0x7F // sysex extension, the next byte is the extended sysex ID
 
 // Digital data sub (0x00-0x7F)
 #define SYSEX_SUB_DIGITAL_DATA_	0
@@ -215,6 +216,7 @@ If there's no delay_task message at the end of the task (so the time-to-run is n
 #define PROTOCOL_USE_SEQUENCEID	1
 // use CRC8 TODO, make it optional
 #define PROTOCOL_USE_CRC		1
+
 
 /*
  * Preferred pins: events 0x80-0xE0 can point to 16 ports/pins only. Instead of using 'the first 16 pins'
@@ -299,6 +301,8 @@ uint8_t encodeSystemReset(uint8_t *result, uint8_t mode);
 uint8_t encodeSysex(uint8_t *result, uint8_t argc, uint8_t *argv);
 // encode subs (task, ...)
 uint8_t encodeTask(uint8_t *result, task_t *task, uint8_t error);
+
+#include <protocol_custom.h>
 
 #ifdef __cplusplus
 }

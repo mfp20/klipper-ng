@@ -1,11 +1,10 @@
-
 #ifndef UTILITY_MACROS_H
 #define UTILITY_MACROS_H
 
 // creates a bit mask. note: the compiler will truncate the value to 16-bits max.
 #define BIT(x) (0x01 << (x))
 // creates a bit mask for unsigned long (32 bit). 
-#define BITLONG(x) ((unsigned long)0x00000001 << (x))
+#define BITLONG(x) ((uint32_t)0x00000001 << (x))
 // to get bit number 3 of 'foo', bit_get(foo, BIT(3))
 #define BIT_GET(p,m) ((p) & (m))
 // to set bit number 3 of 'foo', bit_set(foo, BIT(3))

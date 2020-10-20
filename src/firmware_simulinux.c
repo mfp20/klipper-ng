@@ -1,12 +1,12 @@
 
-#include <stdio.h>
-#include <libknp.h>
-
 #ifdef __GIT_REVPARSE__
 #define RELEASE_FIRMWARE __GIT_REVPARSE__
 #else
 #error "Please add __GITREVPARSE__ define to your compiler command line."
 #endif
+
+#include <stdio.h>
+#include <libknp.h>
 
 int main(int argc, const char *argv[]) {
 	// TODO parse command line args

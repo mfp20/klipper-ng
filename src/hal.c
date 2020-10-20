@@ -126,7 +126,7 @@ uint8_t txtRecv(uint8_t argc, uint8_t *argv, uint8_t timeout) {
 }
 
 uint8_t peerRecv(uint8_t argc, uint8_t *argv, uint8_t timeout) {
-		if (argc) {
+	if (argc) {
 			return peering->read(peering, argv, argc, timeout);
 	} else {
 		if (peering->available(peering)) {

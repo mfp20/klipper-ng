@@ -7,7 +7,6 @@ DIR_BUILD="./build"
 DIR_PY=DIR_BUILD+"/py"
 FILES=(
         "pyknp_head.h",
-        # "defines.h",
         "hal/arch.h",
         "hal/board.h",
         "hal.h",

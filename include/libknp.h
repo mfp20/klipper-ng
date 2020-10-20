@@ -1,18 +1,18 @@
 #ifndef LIBKNP_H
 #define LIBKNP_H
 
+#ifdef __GIT_REVPARSE__
+#define RELEASE_LIBKNP __GIT_REVPARSE__
+#else
+#error "Please add __GITREVPARSE__ define to your compiler command line."
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <hal.h>
 #include <protocol.h>
-
-#ifdef __GIT_REVPARSE__
-#define RELEASE_LIBKNP __GIT_REVPARSE__
-#else
-#error "Please add __GITREVPARSE__ define to your compiler command line."
-#endif
 
 #define TICKTIME 1000
 
