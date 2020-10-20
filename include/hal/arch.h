@@ -78,11 +78,16 @@ uint16_t millis(void);
 uint16_t seconds(void);
 uint16_t uelapsed(uint16_t mstart, uint16_t ustart, uint16_t uend, uint16_t mend);
 
-// PINS
+// PORTs
+uint8_t port_read(uint8_t pin);
+uint8_t port_write(uint8_t pin);
+
+// PINs
 // Set pin to input/output mode.
 void pin_mode(uint8_t pin, uint8_t mode);
 // Return current pin state.
 uint8_t pin_read(uint8_t pin);
+uint16_t pin_read_adc(uint8_t pin);
 // Set pin low(0). Shorthand for write(LOW).
 void pin_set_low(uint8_t pin);
 // Set pin high(1). Shorthand for write(HIGH).

@@ -33,7 +33,7 @@ extern "C" {
 	void runEvent(uint8_t size, uint8_t *event);
 
 	// print event in buffer (or given event)
-	void printEvent(uint8_t count, uint8_t *event, char *output);
+	void printEvent(uint8_t size, uint8_t *event, char *output);
 
 	// receive and run 1 event (arbitrary timeout 1-999 us)
 	void newEvent(void);
@@ -51,11 +51,11 @@ extern "C" {
 	// simple events
 	void cmdPinMode(uint8_t pin, uint8_t mode);				// set mode (INPUT/OUTPUT/PWM/...) on remote preferred pin (for any pin check sysex)
 	void cmdGetDigitalPort(uint8_t port, uint8_t timeout);	// get value on remote port
-	void cmdSetDigitalPort(uint8_t port, uint8_t value);	// set value on remote port
+	void cmdSetDigitalPort(uint8_t port, uint16_t value);	// set value on remote port
 	void cmdGetDigitalPin(uint8_t port, uint8_t timeout);	// get value on remote preferred pin
-	void cmdSetDigitalPin(uint8_t pin, uint8_t value);		// set value on remote preferred pin
+	void cmdSetDigitalPin(uint8_t pin, uint16_t value);		// set value on remote preferred pin
 	void cmdGetAnalogPin(uint8_t pin, uint8_t timeout);		// get value on remote preferred pin
-	void cmdSetAnalogPin(uint8_t pin, uint8_t value);		// set value on remote preferred pin
+	void cmdSetAnalogPin(uint8_t pin, uint16_t value);		// set value on remote preferred pin
 	void cmdHandshakeProtocolVersion(void);			// get/report the protocol version (for firmware version check the sysex)
 	void cmdHandshakeEncoding(uint8_t proto);		// get/set/report encoding (7bit, 7bit compat, ...)
 	void cmdGetInfo(uint8_t info);					// get one of the available infos (microstamp, timestamp, ...)
@@ -64,8 +64,7 @@ extern "C" {
 	void cmdEmergencyStop(uint8_t group);	// stop any activity on pin group
 	void cmdSystemPause(uint16_t delay);	// set remote system pause, wait for delay before pause
 	void cmdSystemResume(uint16_t time);	// set remote system resume (from emergency stop or from pause), wait for time before resume
-	void cmdSystemHalt(void);				// system halt
-	void cmdSystemReset(void);				// initialize a known default state: reset pins, delete any task, ...
+	void cmdSystemReset(uint8_t mode);		// initialize a known default state: reset pins, delete any task, ...
 
 	// sysex events & subs
 	void cmdSysexDigitalPin(void);		// get/set any value on any pin
@@ -107,11 +106,11 @@ extern "C" {
 	// simple events
 	void eventPinMode(uint8_t pin, uint8_t mode);
 	void eventReportDigitalPort(uint8_t port, uint8_t timeout);
-	void eventSetDigitalPort(uint8_t port, uint8_t value);
+	void eventSetDigitalPort(uint8_t port, uint16_t value);
 	void eventReportDigitalPin(uint8_t pin, uint8_t timeout);
-	void eventSetDigitalPin(uint8_t pin, uint8_t value);
+	void eventSetDigitalPin(uint8_t pin, uint16_t value);
 	void eventReportAnalogPin(uint8_t pin, uint8_t timeout);
-	void eventSetAnalogPin(uint8_t pin, uint8_t value);
+	void eventSetAnalogPin(uint8_t pin, uint16_t value);
 	void eventHandshakeProtocolVersion(void);
 	void eventHandshakeEncoding(uint8_t proto);
 	void eventReportInfo(uint8_t info, uint8_t value);
@@ -120,8 +119,7 @@ extern "C" {
 	void eventEmergencyStop(uint8_t group);
 	void eventSystemPause(uint16_t delay);
 	void eventSystemResume(uint16_t time);
-	void eventSystemHalt(void);
-	void eventSystemReset(void);
+	void eventSystemReset(uint8_t mode);
 
 	// sysex events
 	void eventSysexDigitalPin(void);

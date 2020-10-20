@@ -73,7 +73,7 @@ void runEvent(uint8_t size, uint8_t *event) {
 		case STATUS_PROTOCOL_ENCODING:
 			eventHandshakeEncoding(event[32]);
 			break;
-		case STATUS_INFO_REQ:
+		case STATUS_INFO:
 			eventReportInfo(event[1], event[2]);
 			break;
 		case STATUS_SIGNAL:
@@ -86,16 +86,13 @@ void runEvent(uint8_t size, uint8_t *event) {
 			eventEmergencyStop(event[4]);
 			break;
 		case STATUS_SYSTEM_PAUSE:
-			eventSystemPause(event[4]);
+			eventSystemPause(event[3]);
 			break;
 		case STATUS_SYSTEM_RESUME:
-			eventSystemResume(event[4]);
-			break;
-		case STATUS_SYSTEM_HALT:
-			eventSystemHalt();
+			eventSystemResume(event[3]);
 			break;
 		case STATUS_SYSTEM_RESET:
-			eventSystemReset();
+			eventSystemReset(event[3]);
 			break;
 		case STATUS_SYSEX_START:
 			switch (event[1]) { // first byte is sysex start, second byte is command
@@ -284,33 +281,60 @@ void printEvent(uint8_t size, uint8_t *event, char *output) {
 		size = eventSize;
 		event = eventBuffer;
 	}
-	switch (event[3]) {
+	switch (event[2]) {
 		case STATUS_PIN_MODE:
+			sprintf(output, "STATUS_PIN_MODE %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_DIGITAL_PORT_REPORT:
+			sprintf(output, "STATUS_DIGITAL_PORT_REPORT %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_DIGITAL_PORT_SET:
+			sprintf(output, "STATUS_DIGITAL_PORT_SET %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_DIGITAL_PIN_REPORT:
+			sprintf(output, "STATUS_DIGITAL_PIN_REPORT %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_DIGITAL_PIN_SET:
+			sprintf(output, "STATUS_DIGITAL_PIN_SET %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_ANALOG_PIN_REPORT:
+			sprintf(output, "STATUS_ANALOG_PIN_REPORT %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_ANALOG_PIN_SET:
+			sprintf(output, "STATUS_ANALOG_PIN_SET %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_PROTOCOL_VERSION:
+			sprintf(output, "STATUS_PROTOCOL_VERSION %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_PROTOCOL_ENCODING:
-		case STATUS_INFO_REQ:
-		case STATUS_INFO_REP:
+			sprintf(output, "STATUS_PROTOCOL_ENCODING %d %d %d\n", event[2], event[3], event[4]);
+			break;
+		case STATUS_INFO:
+			sprintf(output, "STATUS_INFO %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_SIGNAL:
+			sprintf(output, "STATUS_SIGNAL %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_INTERRUPT:
+			sprintf(output, "STATUS_INTERRUPT %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_EMERGENCY_STOP:
+			sprintf(output, "STATUS_EMERGENCY_STOP %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_SYSTEM_PAUSE:
+			sprintf(output, "STATUS_SYSTEM_PAUSE %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_SYSTEM_RESUME:
-		case STATUS_SYSTEM_HALT:
+			sprintf(output, "STATUS_SYSTEM_RESUME %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_SYSTEM_RESET:
+			sprintf(output, "STATUS_SYSTEM_RESET %d %d %d\n", event[2], event[3], event[4]);
+			break;
 		case STATUS_SYSEX_START:
-			if (output) {
-			} else {
-				txtWrite("Not implemented");
-			}
+			sprintf(output, "STATUS_SYSEX_START (not implemented)\n");
 			break;
 		default:
-			txtWrite("Unknown event %#x", event[3]);
+			sprintf(output, "Unknown event %#x\n", event[2]);
 			break;
 	}
 }
@@ -424,7 +448,7 @@ void cmdGetDigitalPort(uint8_t port, uint8_t timeout) {
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void cmdSetDigitalPort(uint8_t port, uint8_t value) {
+void cmdSetDigitalPort(uint8_t port, uint16_t value) {
 	encodedSize = encodeSetDigitalPort(encodedEvent, port, value);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
@@ -434,7 +458,7 @@ void cmdGetDigitalPin(uint8_t pin, uint8_t timeout) {
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void cmdSetDigitalPin(uint8_t pin, uint8_t value) {
+void cmdSetDigitalPin(uint8_t pin, uint16_t value) {
 	encodedSize = encodeSetDigitalPin(encodedEvent, pin, value);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
@@ -444,7 +468,7 @@ void cmdGetAnalogPin(uint8_t pin, uint8_t timeout) {
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void cmdSetAnalogPin(uint8_t pin, uint8_t value) {
+void cmdSetAnalogPin(uint8_t pin, uint16_t value) {
 	encodedSize = encodeSetAnalogPin(encodedEvent, pin, value);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
@@ -455,39 +479,43 @@ void cmdHandshakeProtocolVersion(void) {
 }
 
 void cmdHandshakeEncoding(uint8_t proto) {
-	errWrite("Not Implemented: \n");
+	encodedSize = encodeProtocolEncoding(encodedEvent, proto);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void cmdGetInfo(uint8_t info) {
-	errWrite("Not Implemented: \n");
+	encodedSize = encodeInfo(encodedEvent, info, 0);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void cmdSendSignal(uint8_t sig, uint8_t value) {
-	errWrite("Not Implemented: \n");
+	encodedSize = encodeSignal(encodedEvent, sig, value);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void cmdSendInterrupt(uint8_t irq, uint8_t value) {
-	errWrite("Not Implemented: \n");
+	encodedSize = encodeInterrupt(encodedEvent, irq, value);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void cmdEmergencyStop(uint8_t group) {
-	errWrite("Not Implemented: \n");
+	encodedSize = encodeEmergencyStop(encodedEvent, group);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void cmdSystemPause(uint16_t delay) {
-	errWrite("Not Implemented: \n");
+	encodedSize = encodeSystemPause(encodedEvent, delay);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void cmdSystemResume(uint16_t time) {
-	errWrite("Not Implemented: \n");
+	encodedSize = encodeSystemResume(encodedEvent, time);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void cmdSystemHalt(void) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSystemReset(void) {
-	errWrite("Not Implemented: \n");
+void cmdSystemReset(uint8_t mode) {
+	encodedSize = encodeSystemReset(encodedEvent, mode);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void cmdSysexDigitalPin(void) {
@@ -621,34 +649,34 @@ void eventPinMode(uint8_t pin, uint8_t mode) {
 
 void eventReportDigitalPort(uint8_t port, uint8_t timeout) {
 	// TODO
-	uint8_t value = 0;
+	uint8_t value = port_read(port);
 	encodedSize = encodeReportDigitalPort(encodedEvent, port);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void eventSetDigitalPort(uint8_t port, uint8_t value) {
-	remoteLog("Not Implemented: \n");
+void eventSetDigitalPort(uint8_t port, uint16_t value) {
+	remoteLog("Not Implemented: eventSetDigitalPort\n");
 }
 
 void eventReportDigitalPin(uint8_t pin, uint8_t timeout) {
 	// TODO
-	uint8_t value = 0;
+	uint8_t value = pin_read(pin);
 	encodedSize = encodeReportDigitalPin(encodedEvent, pin);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void eventSetDigitalPin(uint8_t pin, uint8_t value) {
+void eventSetDigitalPin(uint8_t pin, uint16_t value) {
 	remoteLog("Not Implemented: \n");
 }
 
 void eventReportAnalogPin(uint8_t pin, uint8_t timeout) {
+	uint8_t value = pin_read_adc(pin);
 	// TODO
-	uint8_t value = 0;
 	encodedSize = encodeReportAnalogPin(encodedEvent, pin);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void eventSetAnalogPin(uint8_t pin, uint8_t value) {
+void eventSetAnalogPin(uint8_t pin, uint16_t value) {
 	remoteLog("Not Implemented: \n");
 }
 
@@ -667,7 +695,7 @@ void eventHandshakeEncoding(uint8_t proto) {
 }
 
 void eventReportInfo(uint8_t info, uint8_t value) {
-	encodedSize = encodeInfoRep(encodedEvent, info, value);
+	encodedSize = encodeInfo(encodedEvent, info, value);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
@@ -696,7 +724,7 @@ void eventSystemHalt(void) {
 	remoteLog("Not Implemented: \n");
 }
 
-void eventSystemReset(void) {
+void eventSystemReset(uint8_t mode) {
 	// TODO set pins with analog capability to analog input
 	// and set digital pins to digital output
 	for (uint8_t i = 0; i < TOTAL_PINS; i++) {

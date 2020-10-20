@@ -5,10 +5,11 @@
 extern "C" {
 #endif
 
+#include <utility/macros.h>
+#include <protocol_custom.h>
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdbool.h>
-#include <protocol_custom.h>
 
 #ifdef __GIT_REVPARSE__
 #define RELEASE_PROTOCOL __GIT_REVPARSE__
@@ -17,21 +18,21 @@ extern "C" {
 #endif
 
 /*
-The protocol mimic the MIDI protocol. Each byte of the MIDI byte stream
-starts with MSb 1 for control bytes and starts with MSb 0 for data bytes.
-The MIDI 'delta time' is replaced by a 'sequence id'.
+The protocol mimics the MIDI protocol. Each byte of the MIDI byte stream
+starts with 1 (most significant bit) for control bytes and starts with 0 for data bytes.
+The MIDI 'delta time' is replaced by a 'sequence id' (optional bytes).
 The byte stream is framed in 'events':
 
 	event = [id][message]
 
-		id = [0xFF][sequence id] (7 bit event identifier)
+		id = [0xFD][sequence id] (7 bit event identifier)
 
 		message = [status_byte][status_data] (new event definition)
 
 Common events have max 2 bytes of data.
-To extend the amount of data in each event, the status byte can be 0xF0 to start a sysex.
+To extend the amount of data in each event, the status byte can be 0xFF to start a sysex.
 Sysex have virtually unlimited bytes of data. But must limit the number of data bytes to hw capabilities.
-A sysex is any data byte (ie: 7bit) in between 'sysex start' (0xF0) and 'sysex end' (0xF7):
+A sysex is any data byte (ie: 7bit) in between 'sysex start' (0xFF) and 'sysex end' (0xFE):
 
 			sysex = [mod_byte][sysex_byte][data]
 				sysex = [0x70][extended_sysex_byte][data]
@@ -46,26 +47,28 @@ A sysex is any data byte (ie: 7bit) in between 'sysex start' (0xF0) and 'sysex e
 				sysex_byte = 0x00-0x6F
 
 Example common event:
-			[0xFF][0x00][0x00][0xFF][0xFF][0xFF] (zero delay from previous message, reset system)
-Example sysex event:
-			[0xFF][0x00][0x01][0xF0][0x7E][0x07][0x01][0xF7] (1 tick after previous message, send string "1")
 
-Protocol users can customize it using both the 0xF8-0xFA common event codes (for short&fast messages) and
+			[0xFD][0x00][0xFC][0xFC][0xFC] (first message in sequence, reset system)
+
+Example sysex event:
+
+			[0xFD][0x00][0xFF][0x7E][0x07][0x01][0xFE] (second message in sequence, send string "1")
+
+Protocol users can customize it using both the 0xF5-0xF8 common event codes (for short&fast messages) and
 the 'extended sysex' own codes. Just write your defines and helper methods in protocol_custom.h,
 then plug your decoder in customHandler function pointer. Remember: sysex, extended sysex included,
 can have data bytes only (ie: bytes values < 128).
 
-At the end of every event a CRC8 byte is applied on transmit and discarded on receive.
-This CRC and checking for control/data bits in each received byte should make the protocol robust enough.
-Errors are counted in uint8_t protocolErrors. An increasing number reveal electric interference and protocol version mismatch.
+At the end of every event a CRC8 byte might be applied on transmit and discarded on receive (optional).
+CRC, checking for control/data bits in each received byte, and a few more checks, should make the protocol robust enough.
+If debug is enabled, errors are counted in uint8_t protocolErrorNo.
+An increasing number of errors reveal electric interference and protocol version mismatch.
+Errors are detailed in protocolErrors to improve diagnostics.
 */
 
 // protocol version number (starting from v3.0 because I started from Firmata v2.6.0)
 #define PROTOCOL_VERSION_MAJOR  3 // for non-compatible changes
 #define PROTOCOL_VERSION_MINOR  0 // for backwards compatible changes
-
-// max number of data bytes in incoming messages
-#define PROTOCOL_MAX_EVENT_BYTES   64
 
 // 1xxxxxxx:	status byte using control messages (128-255/0x80-0xFF)
 //					0x80-0xEF: action message, specific to a port/pin and directly affect input/output
@@ -78,22 +81,22 @@ Errors are counted in uint8_t protocolErrors. An increasing number reveal electr
 #define STATUS_DIGITAL_PIN_SET		0xC0 // digital pin value report
 #define STATUS_ANALOG_PIN_REPORT	0xD0 // analog pin value request
 #define STATUS_ANALOG_PIN_SET		0xE0 // analog pin value report
-#define STATUS_SYSEX_START			0xF0 // start a MIDI Sysex message
-#define STATUS_PROTOCOL_VERSION		0xF1 // version req and reply
-#define STATUS_PROTOCOL_ENCODING	0xF2 // encoding req and reply
-#define STATUS_INFO_REQ				0xF3 // 1-byte on-demand info req
-#define STATUS_INFO_REP				0xF4 // 1-byte on-demand info reply
-#define STATUS_SIGNAL				0xF5 // 1-byte 1-way signal
-#define STATUS_INTERRUPT			0xF6 // 1-byte 1-way priority signal (ie: interrupt)
-#define STATUS_SYSEX_END			0xF7 // end a MIDI Sysex message
+#define STATUS_PROTOCOL_VERSION		0xF0 // protocol version
+#define STATUS_PROTOCOL_ENCODING	0xF1 // protocol encoding
+#define STATUS_INFO					0xF2 // 1-byte on-demand info
+#define STATUS_SIGNAL				0xF3 // 1-byte 1-way signal
+#define STATUS_INTERRUPT			0xF4 // 1-byte 1-way priority signal (ie: interrupt)
+#define STATUS_CUSTOM_F5			0xF5 // custom defined
+#define STATUS_CUSTOM_F6			0xF6 // custom defined
+#define STATUS_CUSTOM_F7			0xF7 // custom defined
 #define STATUS_CUSTOM_F8			0xF8 // custom defined
-#define STATUS_CUSTOM_F9			0xF9 // custom defined
-#define STATUS_CUSTOM_FA			0xFA // custom defined
-#define STATUS_EMERGENCY_STOP		0xFB // stop activity on pin group X
-#define STATUS_SYSTEM_PAUSE			0xFC // system pause
-#define STATUS_SYSTEM_RESUME		0xFD // system resume (from pause)
-#define STATUS_SYSTEM_HALT			0xFE // system halt
-#define STATUS_SYSTEM_RESET			0xFF // MIDI system reset
+#define STATUS_EMERGENCY_STOP		0xF9 // stop activity on pin group X
+#define STATUS_SYSTEM_PAUSE			0xFA // system pause
+#define STATUS_SYSTEM_RESUME		0xFB // system resume (from pause)
+#define STATUS_SYSTEM_RESET			0xFC // system reset
+#define STATUS_EVENT_BEGIN			0xFD // event begin
+#define STATUS_SYSEX_END			0xFE // end of sysex data
+#define STATUS_SYSEX_START			0xFF // start of sysex data
 
 // protocol error codes
 #define PROTOCOL_ERR_UNKNOWN	0 //
@@ -106,9 +109,10 @@ Errors are counted in uint8_t protocolErrors. An increasing number reveal electr
 #define PROTOCOL_ERR_TOTAL		7 //
 
 // protocol encoding codes
-#define PROTOCOL_ENCODING_REPORT	0
+#define PROTOCOL_ENCODING_UNKNOWN	0
 #define PROTOCOL_ENCODING_NORMAL	1
 #define PROTOCOL_ENCODING_COMPAT	2
+#define PROTOCOL_ENCODING_REPORT	127
 
 // 1-byte infos codes
 #define INFO_JITTER	1
@@ -205,6 +209,12 @@ If there's no delay_task message at the end of the task (so the time-to-run is n
 // features data sub
 #define SYSEX_SUB_FEATURES_ALL		127
 
+// max number of data bytes in incoming messages
+#define PROTOCOL_MAX_EVENT_BYTES   64
+// use sequenceId TODO, make it optional
+#define PROTOCOL_USE_SEQUENCEID	1
+// use CRC8 TODO, make it optional
+#define PROTOCOL_USE_CRC		1
 
 /*
  * Preferred pins: events 0x80-0xE0 can point to 16 ports/pins only. Instead of using 'the first 16 pins'
@@ -279,15 +289,13 @@ uint8_t encodeReportAnalogPin(uint8_t *result, uint8_t pin);
 uint8_t encodeSetAnalogPin(uint8_t *result, uint8_t pin, uint8_t value);
 uint8_t encodeProtocolVersion(uint8_t *result);
 uint8_t encodeProtocolEncoding(uint8_t *result, uint8_t proto);
-uint8_t encodeInfoReq(uint8_t *result, uint8_t info);
-uint8_t encodeInfoRep(uint8_t *result, uint8_t info, uint8_t value);
+uint8_t encodeInfo(uint8_t *result, uint8_t info, uint8_t value);
 uint8_t encodeSignal(uint8_t *result, uint8_t key, uint8_t value);
 uint8_t encodeInterrupt(uint8_t *result, uint8_t key, uint8_t value);
 uint8_t encodeEmergencyStop(uint8_t *result, uint8_t group);
 uint8_t encodeSystemPause(uint8_t *result, uint16_t delay);
 uint8_t encodeSystemResume(uint8_t *result, uint16_t time);
-uint8_t encodeSystemHalt(uint8_t *result);
-uint8_t encodeSystemReset(uint8_t *result);
+uint8_t encodeSystemReset(uint8_t *result, uint8_t mode);
 uint8_t encodeSysex(uint8_t *result, uint8_t argc, uint8_t *argv);
 // encode subs (task, ...)
 uint8_t encodeTask(uint8_t *result, task_t *task, uint8_t error);

@@ -138,6 +138,16 @@ uint16_t seconds(void) {
 }
 
 
+// PORT GET/SET -------------------------------------------------------------------------------------------
+uint8_t port_read(uint8_t pin) {
+	return 0;
+}
+
+uint8_t port_write(uint8_t pin) {
+	return 0;
+}
+
+
 // PIN GET/SET -------------------------------------------------------------------------------------------
 void pin_mode(uint8_t pin, uint8_t mode) {
 	usleep(1);
@@ -226,6 +236,9 @@ static void pin_input_adc_run(void) {
 	}
 }
 
+uint16_t pin_read_adc(uint8_t pin) {
+	return adc_value[pin];
+}
 
 // PULSING -----------------------------------------------------------------------------------------------
 volatile pin_pulsing_t pulsing;
