@@ -8,11 +8,11 @@ DIR_PY=DIR_BUILD+"/py"
 FILES=(
         "pyknp_head.h",
         "hal/arch.h",
-        "hal/board.h",
-        "hal.h",
-        "protocol.h",
-        "protocol_custom.h",
-        "libknp.h",
+        #"hal/board.h",
+        #"hal.h",
+        #"protocol.h",
+        #"protocol_custom.h",
+        #"libknp.h",
         "pyknp_tail.h",
         )
 DEST=DIR_PY+'/pyknp.h'

@@ -2,15 +2,19 @@
 #include <libknp.h>
 #include <stdarg.h>		// va_arg
 #include <string.h>		// strcpy
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
 
 char fwname[] = "klipper-ng";
 char fwver[] = "0000000";
 
 // time and performance handling
+uint16_t sstart = 0;
 uint16_t mstart = 0;
 uint16_t ustart = 0;
-uint16_t jitter = 0;
 uint16_t deltaTime = 0;
+uint16_t jitter = 0;
 
 // data
 uint8_t txtData, binData, peerData;
@@ -24,12 +28,19 @@ task_t *running = NULL;
 void init(char *name, char *ver) {
 	if (name) strcpy(fwname, name);
 	if (ver) strcpy(fwver, ver);
-
-	// init hardware
+	// hal
 	halInit();
-
-	// setup protocol callbacks
+	// protocol
 	encodingSwitch(PROTOCOL_ENCODING_NORMAL);
+}
+
+void localLog(const char *format, ...) {
+	char buffer[256];
+	va_list args;
+	va_start (args, format);
+	int len = vsprintf(buffer,format, args);
+	cmdSysexStringData(len,buffer);
+	va_end (args);
 }
 
 void remoteLog(const char *format, ...) {
@@ -37,7 +48,7 @@ void remoteLog(const char *format, ...) {
 	va_list args;
 	va_start (args, format);
 	int len = vsprintf(buffer,format, args);
-	eventSysexStringData(len,buffer);
+	cmdSysexStringData(len,buffer);
 	va_end (args);
 }
 
@@ -151,16 +162,16 @@ void runEvent(uint8_t size, uint8_t *event) {
 					}
 					break;
 				case SYSEX_ONEWIRE_DATA:
-					eventSysexOneWireData();
+					eventSysexOneWire();
 					break;
 				case SYSEX_UART_DATA:
-					eventSysexUartData();
+					eventSysexUart();
 					break;
 				case SYSEX_I2C_DATA:
-					eventSysexI2CData();
+					eventSysexI2C();
 					break;
 				case SYSEX_SPI_DATA:
-					eventSysexSPIData();
+					eventSysexSPI();
 					break;
 				case SYSEX_STRING_DATA:
 					if (txtConsole) {
@@ -173,68 +184,62 @@ void runEvent(uint8_t size, uint8_t *event) {
 						txtSend(datalen, event);
 					}
 					break;
-				case SYSEX_DIGITAL_PIN_REPORT:
-					eventSysexDigitalPinReport();
-					break;
-				case SYSEX_ANALOG_PIN_REPORT:
-					eventSysexAnalogPinReport();
-					break;
-				case SYSEX_VERSION_REPORT:
+				case SYSEX_VERSION:
 					switch(event[4]) {
 						case SYSEX_SUB_VERSION_FIRMWARE_NAME:
-							eventSysexVersionReport(event[4],fwname);
+							eventSysexVersion(event[4],fwname);
 							break;
 						case SYSEX_SUB_VERSION_FIRMWARE_VER:
-							eventSysexVersionReport(event[4],fwver);
+							eventSysexVersion(event[4],fwver);
 							break;
 						case SYSEX_SUB_VERSION_LIBKNP:
 							sprintf(ver,"%x",RELEASE_LIBKNP);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							break;
 						case SYSEX_SUB_VERSION_PROTOCOL:
 							sprintf(ver,"%x",RELEASE_PROTOCOL);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							break;
 						case SYSEX_SUB_VERSION_HAL:
 							sprintf(ver,"%x",RELEASE_HAL);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							break;
 						case SYSEX_SUB_VERSION_BOARD:
 							sprintf(ver,"%x",RELEASE_BOARD);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							break;
 						case SYSEX_SUB_VERSION_ARCH:
 							sprintf(ver,"%x",RELEASE_ARCH);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							break;
 						case SYSEX_SUB_VERSION_DEFINES:
 							sprintf(ver,"%x",RELEASE_DEFINES);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							break;
 						case SYSEX_SUB_VERSION_ALL:
-							eventSysexVersionReport(event[4],fwname);
-							eventSysexVersionReport(event[4],fwver);
+							eventSysexVersion(event[4],fwname);
+							eventSysexVersion(event[4],fwver);
 							sprintf(ver,"%x",RELEASE_LIBKNP);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							sprintf(ver,"%x",RELEASE_PROTOCOL);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							sprintf(ver,"%x",RELEASE_HAL);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							sprintf(ver,"%x",RELEASE_BOARD);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							sprintf(ver,"%x",RELEASE_ARCH);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							sprintf(ver,"%x",RELEASE_DEFINES);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							break;
 						default:
 							sprintf(ver,"%x",0);
-							eventSysexVersionReport(event[4],ver);
+							eventSysexVersion(event[4],ver);
 							break;
 					}
 					break;
-				case SYSEX_FEATURES_REPORT:
-					eventSysexFeaturesReport();
+				case SYSEX_FEATURES:
+					eventSysexFeatures(event[5]);
 					break;
 				case SYSEX_PINCAPS_REQ:
 					eventSysexPinCapsReq();
@@ -340,14 +345,11 @@ void printEvent(uint8_t size, uint8_t *event, char *output) {
 }
 
 void newEvent(void) {
-	if (binConsole->available(binConsole)) {
-		while(1) {
-			binConsole->read(binConsole, &binData, 1, 1);
-			if (decodeEvent(&binData, 0, NULL)) {
-				runEvent(0, NULL);
-				break;
-			}
-			if (mstart!=millis()) break;
+	while(binConsole->available(binConsole)) {
+		binConsole->read(binConsole, &binData, 1, 1);
+		if (decodeEvent(&binData, 0, NULL)) {
+			runEvent(0, NULL);
+			break;
 		}
 	}
 }
@@ -406,6 +408,10 @@ void run(void) {
 		cmdSendSignal(SIG_JITTER, jms>126?127:jms);
 		jitter = jitter%1000;
 	}
+	if(sstart!=seconds()) {
+		printf("%4d:%4d:%4d - delta %4d (+%4d)\n",sstart,mstart,ustart,deltaTime,jitter);
+		sstart = seconds();
+	}
 
 	// 1. run hardware tasks
 	halRun();
@@ -428,6 +434,7 @@ void run(void) {
 		// wait for new incoming event
 		newEvent();
 		// evaluate elapsed time
+		usleep(1); // in case cpu is too fast, mutex in micros/millis can't recover in time
 		deltaTime = uelapsed(mstart, ustart, micros(), millis());
 	}
 	// evaluate jitter
@@ -444,17 +451,17 @@ void cmdPinMode(uint8_t pin, uint8_t mode) {
 }
 
 void cmdGetDigitalPort(uint8_t port, uint8_t timeout) {
-	encodedSize = encodeReportDigitalPort(encodedEvent, port);
+	encodedSize = encodeReportDigitalPort(encodedEvent, port, timeout);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void cmdSetDigitalPort(uint8_t port, uint16_t value) {
+void cmdSetDigitalPort(uint8_t port, uint8_t value) {
 	encodedSize = encodeSetDigitalPort(encodedEvent, port, value);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void cmdGetDigitalPin(uint8_t pin, uint8_t timeout) {
-	encodedSize = encodeReportDigitalPin(encodedEvent, pin);
+	encodedSize = encodeReportDigitalPin(encodedEvent, pin, timeout);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
@@ -464,7 +471,7 @@ void cmdSetDigitalPin(uint8_t pin, uint16_t value) {
 }
 
 void cmdGetAnalogPin(uint8_t pin, uint8_t timeout) {
-	encodedSize = encodeReportAnalogPin(encodedEvent, pin);
+	encodedSize = encodeReportAnalogPin(encodedEvent, pin, timeout);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
@@ -518,124 +525,126 @@ void cmdSystemReset(uint8_t mode) {
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
+void cmdSysexPrefPins(uint8_t cmd, uint8_t pin) {
+	encodedSize = encodeSysexPrefPins(encodedEvent, cmd, pin);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
+}
+
+void cmdSysexPinGroups(uint8_t group, uint8_t cmd, uint8_t pin) {
+	encodedSize = encodeSysexPinGroups(encodedEvent, group, cmd, pin);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
+}
+
 void cmdSysexDigitalPin(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexAnalogPin(void) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexScheduler(void) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexSchedCreate(uint8_t id, uint8_t len) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexSchedDelete(uint8_t id) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexSchedAdd(uint8_t id, uint8_t size, uint8_t *event) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexSchedSchedule(uint8_t id, uint16_t delay) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexSchedDelay(uint16_t delay) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexSchedQueryList(void) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexSchedQueryTask(uint8_t id) {
-	errWrite("Not Implemented: \n");
-}
-
-void cmdSysexSchedReset(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexOneWireData(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexUartData(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexI2CData(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexSPIData(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
-void cmdSysexStringData(void) {
-	errWrite("Not Implemented: \n");
+void cmdSysexStringData(uint8_t len, char *string) {
+	stderrPrint("Not Implemented: \n");
 }
 
-void cmdSysexDigitalPinReport(void) {
-	errWrite("Not Implemented: \n");
+void cmdSysexScheduler(void) {
+	stderrPrint("Not Implemented: \n");
 }
 
-void cmdSysexAnalogPinReport(void) {
-	errWrite("Not Implemented: \n");
+void cmdSysexSchedCreate(uint8_t id, uint8_t len) {
+	stderrPrint("Not Implemented: \n");
 }
 
-void cmdSysexVersionReport(uint8_t item) {
-	errWrite("Not Implemented: \n");
+void cmdSysexSchedDelete(uint8_t id) {
+	stderrPrint("Not Implemented: \n");
 }
 
-void cmdSysexFeaturesReport(void) {
-	errWrite("Not Implemented: \n");
+void cmdSysexSchedAdd(uint8_t id, uint8_t size, uint8_t *event) {
+	stderrPrint("Not Implemented: \n");
+}
+
+void cmdSysexSchedSchedule(uint8_t id, uint16_t delay) {
+	stderrPrint("Not Implemented: \n");
+}
+
+void cmdSysexSchedDelay(uint16_t delay) {
+	stderrPrint("Not Implemented: \n");
+}
+
+void cmdSysexSchedQueryList(void) {
+	stderrPrint("Not Implemented: \n");
+}
+
+void cmdSysexSchedQueryTask(uint8_t id) {
+	stderrPrint("Not Implemented: \n");
+}
+
+void cmdSysexSchedReset(void) {
+	stderrPrint("Not Implemented: \n");
+}
+
+void cmdSysexVersion(uint8_t item) {
+	stderrPrint("Not Implemented: \n");
+}
+
+void cmdSysexFeatures(void) {
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexPinCapsReq(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexPinCapsRep(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexPinMapReq(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexPinMapRep(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexPinStateReq(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexPinStateRep(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexDeviceReq(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexDeviceRep(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexRCSwitchIn(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 void cmdSysexRCSwitchOut(void) {
-	errWrite("Not Implemented: \n");
+	stderrPrint("Not Implemented: \n");
 }
 
 
@@ -644,40 +653,34 @@ void cmdSysexRCSwitchOut(void) {
 //
 
 void eventPinMode(uint8_t pin, uint8_t mode) {
-	remoteLog("Not Implemented: \n");
+	pin_mode(pin, mode);
 }
 
 void eventReportDigitalPort(uint8_t port, uint8_t timeout) {
-	// TODO
-	uint8_t value = port_read(port);
-	encodedSize = encodeReportDigitalPort(encodedEvent, port);
+	encodedSize = encodeReportDigitalPort(encodedEvent, port, port_read(port, timeout));
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void eventSetDigitalPort(uint8_t port, uint16_t value) {
-	remoteLog("Not Implemented: eventSetDigitalPort\n");
+void eventSetDigitalPort(uint8_t port, uint8_t value) {
+	port_write(port, value);
 }
 
 void eventReportDigitalPin(uint8_t pin, uint8_t timeout) {
-	// TODO
-	uint8_t value = pin_read(pin);
-	encodedSize = encodeReportDigitalPin(encodedEvent, pin);
+	encodedSize = encodeReportDigitalPin(encodedEvent, pin, pin_read(pin, timeout));
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void eventSetDigitalPin(uint8_t pin, uint16_t value) {
-	remoteLog("Not Implemented: \n");
+	pin_write(pin, value);
 }
 
 void eventReportAnalogPin(uint8_t pin, uint8_t timeout) {
-	uint8_t value = pin_read_adc(pin);
-	// TODO
-	encodedSize = encodeReportAnalogPin(encodedEvent, pin);
+	encodedSize = encodeReportAnalogPin(encodedEvent, pin, pin_read_adc(pin, timeout));
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void eventSetAnalogPin(uint8_t pin, uint16_t value) {
-	remoteLog("Not Implemented: \n");
+	pin_write_pwm(pin, value);
 }
 
 void eventHandshakeProtocolVersion(void) {
@@ -700,59 +703,88 @@ void eventReportInfo(uint8_t info, uint8_t value) {
 }
 
 void eventHandleSignal(uint8_t sig, uint8_t key, uint8_t value) {
-	// TODO
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
+	switch (sig) {
+		case SIG_JITTER:
+			// TODO, delay all tasks OR bring clock back
+			break;
+		case SIG_DISCARD:
+			// TODO, re-send event?
+			break;
+		default:
+			break;
+	}
 }
 
 void eventHandleInterrupt(uint8_t irq, uint8_t key, uint8_t value) {
-	remoteLog("Not Implemented: \n");
+	switch (irq) {
+		case IRQ_PRIORITY:
+			// TODO, exec now
+			break;
+		default:
+			break;
+	}
 }
 
-void eventEmergencyStop(uint8_t group) {
-	remoteLog("Not Implemented: \n");
+void eventEmergencyStop(uint8_t g) {
+	for(int i;i<16;i++) {
+		if (pin_group[g][i]) pin_write(1,0); // TODO
+	}
 }
 
 void eventSystemPause(uint16_t delay) {
-	remoteLog("Not Implemented: \n");
+	encodedSize = encodeSystemPause(encodedEvent, halPause(delay));
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void eventSystemResume(uint16_t delay) {
-	remoteLog("Not Implemented: \n");
-}
-
-void eventSystemHalt(void) {
-	remoteLog("Not Implemented: \n");
+	encodedSize = encodeSystemPause(encodedEvent, halResume(delay));
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void eventSystemReset(uint8_t mode) {
-	// TODO set pins with analog capability to analog input
-	// and set digital pins to digital output
-	for (uint8_t i = 0; i < TOTAL_PINS; i++) {
-		if (IS_PIN_ANALOG(i)) {
-		} else if (IS_PIN_DIGITAL(i)) {
-		}
-	}
-	// reset pin_status
-	free(pin_status);
-	pin_status_size = 0;
+	encodedSize = encodeSystemReset(encodedEvent, mode);
+	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
+	halReset(mode);
+}
+
+void eventSysexPrefPins(void) {
+	remoteLog("Not Implemented: \n");
+}
+
+void eventSysexPinGroups(void) {
+	remoteLog("Not Implemented: \n");
 }
 
 void eventSysexDigitalPin(void) {
 	remoteLog("Not Implemented: \n");
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 void eventSysexAnalogPin(void) {
 	remoteLog("Not Implemented: \n");
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
+}
+
+void eventSysexOneWire(void) {
+	remoteLog("Not Implemented: \n");
+}
+
+void eventSysexUart(void) {
+	remoteLog("Not Implemented: \n");
+}
+
+void eventSysexI2C(void) {
+	remoteLog("Not Implemented: \n");
+}
+
+void eventSysexSPI(void) {
+	remoteLog("Not Implemented: \n");
+}
+
+void eventSysexString(uint8_t argc, char *argv) {
+	remoteLog("Not Implemented: \n");
 }
 
 void eventSysexScheduler(void) {
 	remoteLog("Not Implemented: \n");
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
 static task_t *findTask(uint8_t id) {
@@ -768,7 +800,7 @@ static task_t *findTask(uint8_t id) {
 }
 
 static void reportTask(task_t *task, bool error) {
-	encodedSize = encodeTask(encodedEvent, task, error);
+	encodedSize = encodeSysexTask(encodedEvent, task, error);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
@@ -870,53 +902,26 @@ void eventSysexSchedReset(void) {
 	}
 }
 
-void eventSysexOneWireData(void) {
-	remoteLog("Not Implemented: \n");
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
-}
-
-void eventSysexUartData(void) {
-	remoteLog("Not Implemented: \n");
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
-}
-
-void eventSysexI2CData(void) {
-	remoteLog("Not Implemented: \n");
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
-}
-
-void eventSysexSPIData(void) {
-	remoteLog("Not Implemented: \n");
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
-}
-
-void eventSysexStringData(uint8_t argc, char *argv) {
-	// TODO check casting from char* to uint8_t*
-	encodedSize = encodeSysex(encodedEvent, argc, (uint8_t*)argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
-}
-
-void eventSysexDigitalPinReport(void) {
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
-}
-
-void eventSysexAnalogPinReport(void) {
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
-	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
-}
-
-void eventSysexVersionReport(uint8_t item, char *ver) {
+void eventSysexVersion(uint8_t item, char *ver) {
 	encodedSize = encodeSysex(encodedEvent, strlen(ver), (uint8_t *)ver);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 
-void eventSysexFeaturesReport(void) {
-	// TODO encodedSize = encodeSysex(encodedEvent, argc, argv);
+void eventSysexFeatures(uint8_t feature) {
+	uint8_t *data;
+	switch (feature) {
+		case SYSEX_SUB_FEATURES_PIN_TOTAL:
+			break;
+			//case SYSEX_SUB_FEATURES_PIN_ANALOG_FIRST:
+			//	break;
+			//case SYSEX_SUB_FEATURES_PIN_ANALOG_TOTAL:
+			//	break;
+		case SYSEX_SUB_FEATURES_TOTAL:
+			break;
+		default:
+			break;
+	}
+	encodedSize = encodeSysexFeatures(encodedEvent, feature, data);
 	binConsole->write(binConsole, encodedEvent, encodedSize, 0);
 }
 

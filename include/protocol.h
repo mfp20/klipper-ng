@@ -63,6 +63,14 @@ CRC, checking for control/data bits in each received byte, and a few more checks
 If debug is enabled, errors are counted in uint8_t protocolErrorNo.
 An increasing number of errors reveal electric interference and protocol version mismatch.
 Errors are detailed in protocolErrors to improve diagnostics.
+
+Preferred pins: events 0x80-0xE0 can point to 16 ports/pins only. Instead of using 'the first 16 pins'
+the event code incorporates (as 'channel' in MIDI speaking) the index of the preferred pin array.
+The host can configure arbitrary pins as 'preferred', and then use fast events (6 bytes+CRC) to manipulate
+those. In order to manipulate other pins a sysex must be used, requiring more bytes to produce an event.
+
+Pin groups:
+
 */
 
 // protocol version number (starting from v3.0 because I started from Firmata v2.6.0)
@@ -120,9 +128,12 @@ Errors are detailed in protocolErrors to improve diagnostics.
 #define SIG_JITTER	0 // last tick finished in late (ie: developer is underachieving / MCU is too tiny / too much work)
 #define SIG_DISCARD	1 // received bytes discarded (ie: protocol error)
 
+// 1-byte signal codes
+#define IRQ_PRIORITY 0 // priority event
+
 // 0xxxxxxx: sysex using data messages (0-127/0x00-0x7F)
 // 0x00-0x1F: DATA
-#define SYSEX_PREFERRED_PINS_DATA	0x00 // get/set preferred pins
+#define SYSEX_PREFPINS_DATA			0x00 // get/set preferred pins
 #define SYSEX_PINGROUPS_DATA		0x01 // get/set pin groups
 #define SYSEX_DIGITAL_PIN_DATA		0x02 // get/set any value to any pin
 #define SYSEX_ANALOG_PIN_DATA		0x03 // get/set and specify the analog reference source and R/W resolution
@@ -133,10 +144,8 @@ Errors are detailed in protocolErrors to improve diagnostics.
 #define SYSEX_STRING_DATA			0x08 // encoded string (see related sub commands)
 #define SYSEX_SCHEDULER_DATA		0x09 // scheduler request (see related sub commands)
 // 0x20-0x3F: REPORT
-#define SYSEX_DIGITAL_PIN_REPORT	0x20 // report of ANY digital input pins
-#define SYSEX_ANALOG_PIN_REPORT		0x21 // report of ANY analog input pins
-#define SYSEX_VERSION_REPORT		0x22 // report firmware's version details (name, libs version, ...)
-#define SYSEX_FEATURES_REPORT		0x23 // report features supported by the firmware
+#define SYSEX_VERSION				0x20 // report firmware's version details (name, libs version, ...)
+#define SYSEX_FEATURES				0x21 // report features supported by the firmware
 // 0x40-0x5F: REQUEST/REPLY
 #define SYSEX_PINCAPS_REQ			0x40 // ask for supported modes and resolution of all pins
 #define SYSEX_PINCAPS_REP			0x41 // reply with supported modes and resolution
@@ -208,7 +217,10 @@ If there's no delay_task message at the end of the task (so the time-to-run is n
 #define SYSEX_SUB_VERSION_ALL		127
 
 // features data sub
-#define SYSEX_SUB_FEATURES_ALL		127
+#define SYSEX_SUB_FEATURES_PIN_TOTAL			0
+//#define SYSEX_SUB_FEATURES_PIN_ANALOG_FIRST		1
+//#define SYSEX_SUB_FEATURES_PIN_ANALOG_TOTAL		2
+#define SYSEX_SUB_FEATURES_TOTAL				1
 
 // max number of data bytes in incoming messages
 #define PROTOCOL_MAX_EVENT_BYTES   64
@@ -216,18 +228,6 @@ If there's no delay_task message at the end of the task (so the time-to-run is n
 #define PROTOCOL_USE_SEQUENCEID	1
 // use CRC8 TODO, make it optional
 #define PROTOCOL_USE_CRC		1
-
-
-/*
- * Preferred pins: events 0x80-0xE0 can point to 16 ports/pins only. Instead of using 'the first 16 pins'
- * the event code incorporates (as 'channel' in MIDI speaking) the index of the preferred pin array.
- * The host can configure arbitrary pins as 'preferred', and then use fast events (6 bytes+CRC) to manipulate
- * those. In order to manipulate other pins a sysex must be used, requiring more bytes to produce an event.
- */
-// preferred pins (array index is the 'channel' in STATUS_XXX events)
-extern uint8_t pins[16];
-// pin groups (4 groups of 16 pins each, for STATUS_)
-extern uint8_t group[4][16];
 
 typedef struct task_s {
 	uint8_t id; // only 7bits used -> supports 127 tasks
@@ -238,20 +238,19 @@ typedef struct task_s {
 	struct task_s *next;
 } task_t;
 
-// callback function types
-typedef void (*cbf_varg_t)(const char *format, ...);
-typedef void (*cbf_data_t)(uint8_t argc, uint8_t *argv);
-typedef uint8_t (*cbf_eval_t)(uint8_t count);
-typedef void (*cbf_coder_t)(uint8_t *input, uint8_t count, uint8_t *output);
-typedef void (*cbf_signal_t)(uint8_t sig, uint8_t value);
+typedef void (*fptr_varg_t)(const char *format, ...);
+typedef void (*fptr_data_t)(uint8_t argc, uint8_t *argv);
+typedef uint8_t (*fptr_eval_t)(uint8_t count);
+typedef void (*fptr_coder_t)(uint8_t *input, uint8_t count, uint8_t *output);
+typedef void (*fptr_signal_t)(uint8_t sig, uint8_t value);
 
-// callback functions
-extern cbf_eval_t cbEvalEnc;
-extern cbf_coder_t cbEncoder;
-extern cbf_eval_t cbEvalDec;
-extern cbf_coder_t cbDecoder;
-extern cbf_data_t customHandler;
-extern cbf_signal_t protocolSignal;
+//
+extern fptr_eval_t cbEvalEnc;
+extern fptr_coder_t cbEncoder;
+extern fptr_eval_t cbEvalDec;
+extern fptr_coder_t cbDecoder;
+extern fptr_data_t customHandler;
+extern fptr_signal_t protocolSignal;
 
 // events
 extern uint8_t sequenceId; // unique event identifier
@@ -278,17 +277,15 @@ uint8_t encodingSwitch(uint8_t proto);
 uint8_t decodeEvent(uint8_t *byte, uint8_t size, uint8_t *event);
 
 // prepare data for sending and write it at &event:
-//		- for simple events argc=byte1 and argv=&byteN
-//		- for sysex events = CMD_START_SYSEX, argv[0] is sysex modifier, and argv[1] sysex event, then data
-// returns the event's number of bytes (to be eventually sent)
+// returns the event's number of bytes
 uint8_t encodeEvent(uint8_t cmd, uint8_t argc, uint8_t *argv, uint8_t *event);
 uint8_t encodePinMode(uint8_t *result, uint8_t pin, uint8_t mode);
-uint8_t encodeReportDigitalPort(uint8_t *result, uint8_t port);
+uint8_t encodeReportDigitalPort(uint8_t *result, uint8_t port, uint8_t value);
 uint8_t encodeSetDigitalPort(uint8_t *result, uint8_t port, uint8_t value);
-uint8_t encodeReportDigitalPin(uint8_t *result, uint8_t pin);
+uint8_t encodeReportDigitalPin(uint8_t *result, uint8_t pin, uint8_t value);
 uint8_t encodeSetDigitalPin(uint8_t *result, uint8_t pin, uint8_t value);
-uint8_t encodeReportAnalogPin(uint8_t *result, uint8_t pin);
-uint8_t encodeSetAnalogPin(uint8_t *result, uint8_t pin, uint8_t value);
+uint8_t encodeReportAnalogPin(uint8_t *result, uint8_t pin, uint16_t value);
+uint8_t encodeSetAnalogPin(uint8_t *result, uint8_t pin, uint16_t value);
 uint8_t encodeProtocolVersion(uint8_t *result);
 uint8_t encodeProtocolEncoding(uint8_t *result, uint8_t proto);
 uint8_t encodeInfo(uint8_t *result, uint8_t info, uint8_t value);
@@ -300,7 +297,10 @@ uint8_t encodeSystemResume(uint8_t *result, uint16_t time);
 uint8_t encodeSystemReset(uint8_t *result, uint8_t mode);
 uint8_t encodeSysex(uint8_t *result, uint8_t argc, uint8_t *argv);
 // encode subs (task, ...)
-uint8_t encodeTask(uint8_t *result, task_t *task, uint8_t error);
+uint8_t encodeSysexPrefPins(uint8_t *result, uint8_t cmd, uint8_t pin);
+uint8_t encodeSysexPinGroups(uint8_t *result, uint8_t group, uint8_t cmd, uint8_t pin);
+uint8_t encodeSysexTask(uint8_t *result, task_t *task, uint8_t error);
+uint8_t encodeSysexFeatures(uint8_t *result, uint8_t feature, uint8_t *data);
 
 #include <protocol_custom.h>
 

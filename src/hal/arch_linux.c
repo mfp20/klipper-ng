@@ -89,28 +89,14 @@ uint16_t seconds(void) {
 	return t;
 }
 
-
-// PORT GET/SET -----------------------------------------------------------------------------
-
-uint8_t port_read(uint8_t pin, uint8_t timeout) {
-	usleep(1);
-	return 0;
-}
-
-uint8_t port_write(uint8_t pin, uint8_t value) {
-	usleep(1);
-	return 0;
-}
-
-
-// PIN GET/SET ------------------------------------------------------------------------------
+// PIN GET/SET ----------------------------------------------------------------------------
 
 void pin_mode(uint8_t pin, uint8_t mode) {
 	usleep(1);
 }
 
 uint8_t pin_read(uint8_t pin, uint8_t timeout) {
-	return 0;
+	return rand() % 1;
 }
 
 void pin_set_low(uint8_t pin) {
@@ -129,10 +115,6 @@ void pin_write(uint8_t pin, uint8_t value) {
 	usleep(1);
 }
 
-void pin_write_pwm(uint8_t pin, uint16_t value) {
-	usleep(1);
-}
-
 void pin_pullup_enable(uint8_t pin) {
 	usleep(1);
 }
@@ -142,9 +124,9 @@ void pin_open_drain(uint8_t pin) {
 }
 
 
-// ADC -------------------------------------------------------------------------------------
+// ADC --------------------------------------------------------------------------------------
 
-static void pin_adc_run(void) {
+static void pin_input_adc_run(void) {
 	if (pin_adc_enable[pin_adc_current]) {
 		pin_adc_value[pin_adc_current] = rand() % 256;
 	}
@@ -153,10 +135,6 @@ static void pin_adc_run(void) {
 	} else {
 		pin_adc_current = 0;
 	}
-}
-
-uint16_t pin_read_adc(uint8_t pin, uint8_t timeout) {
-	return pin_adc_value[pin];
 }
 
 
@@ -191,24 +169,18 @@ volatile pin_frame_t* pin_pulse_multi(uint16_t milli) {
 	}
 }
 
+
+// ARCH -------------------------------------------------------------------------------------
+
 void _arch_init(void) {
-	// random init
 	srand(time(NULL));
-	// timer init
 	timer_init();
 	// pin init
-	pin[0] = P1;
-	pin[1] = P2;
-	pin[2] = P3;
-	pin[3] = P4;
-	pin[4] = P5;
-	pin[5] = P6;
-	pin[6] = P7;
-	pin[7] = P8;
+	// TODO tap into linux kernel GPIO,I2C,SPI subsystems
 }
 
 void _arch_run(void) {
-	pin_adc_run();
+	pin_input_adc_run();
 }
 
 void _arch_reset(void) {

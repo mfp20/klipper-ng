@@ -12,38 +12,47 @@
 # 
 
 BOARD ?= simulinux
+ifeq ($(BOARD),hostlinux)
+	ARCH=linux
+	MCU=x86
+	CROSS_COMPILE=
+endif
 ifeq ($(BOARD),simulinux)
+	ARCH=bogus
 	MCU=bogus
 	CROSS_COMPILE=
 endif
-ifeq ($(BOARD),genericx86)
+ifeq ($(BOARD),linux)
+	ARCH=linux
 	MCU=x86
 	CROSS_COMPILE=
 endif
 ifeq ($(BOARD),rpi)
+	ARCH=linux
 	MCU=arm
 	CROSS_COMPILE=arm-
 endif
 ifeq ($(BOARD),odroid)
+	ARCH=linux
 	MCU=arm
 	CROSS_COMPILE=arm-
 endif
 ifeq ($(BOARD),generic328p)
+	ARCH=avr
 	MCU=atmega328p
 	CROSS_COMPILE=avr-
 endif
 ifeq ($(BOARD),melzi)
+	ARCH=avr
 	MCU=atmega1284p
 	CROSS_COMPILE=avr-
 endif
 ifeq ($(BOARD),mksgenl)
+	ARCH=avr
 	MCU=atmega2560
 	CROSS_COMPILE=avr-
 endif
-ifeq ($(BOARD),hostlinux)
-	MCU=x86
-	CROSS_COMPILE=
-endif
+ARCH ?= linux
 MCU ?= x86
 CROSS_COMPILE ?=
 
@@ -62,30 +71,36 @@ DIR_BUILD = ./build
 DIR_OBJ	:= $(DIR_BUILD)/objs
 DIR_PY := $(DIR_BUILD)/py
 DIR_APP	:= $(DIR_BUILD)/bin
+#INCLUDE	:= -Iinclude/ -I/usr/avr/include
 INCLUDE	:= -Iinclude/
-SRCS_UTIL	:= \
-	$(wildcard src/utility/*.c)
-SRCS_HAL	:= \
-	src/hal/arch_common.c src/hal/arch_$(MCU).c src/hal/board_$(BOARD).c
-SRCS_PROTO	:= \
-	src/protocol.c
-SRCS_LIB	:= \
-	src/libknp.c
-SRCS_FW		:= \
-	src/firmware_$(BOARD).c
-SRCS_HOST	:= \
-	$(wildcard src/host/chelper/*.c)
+SRCS_UTIL	:= $(wildcard src/utility/*.c)
+SRCS_HAL	:= src/hal/arch_common.c \
+			src/hal/arch_$(ARCH).c \
+			src/hal/board_common.c \
+			src/hal/board_$(BOARD).c
+SRCS_PROTO	:= src/protocol.c
+SRCS_LIB	:= src/libknp.c
+SRCS_FW		:= src/firmware_$(BOARD).c
+SRCS_HOST	:= $(wildcard src/host/chelper/*.c)
 OBJS_UTIL	:= $(SRCS_UTIL:%.c=$(DIR_OBJ)/%.o)
-OBJS_HAL	:= $(DIR_OBJ)/src/hal/arch_common.$(BOARD).o $(DIR_OBJ)/src/hal/arch.$(BOARD).o $(DIR_OBJ)/src/hal/board.$(BOARD).o $(DIR_OBJ)/src/hal.$(BOARD).o
+OBJS_HAL	:= $(DIR_OBJ)/src/hal/arch_common.$(BOARD).o \
+			$(DIR_OBJ)/src/hal/arch.$(BOARD).o \
+			$(DIR_OBJ)/src/hal/board_common.$(BOARD).o \
+			$(DIR_OBJ)/src/hal/board.$(BOARD).o \
+			$(DIR_OBJ)/src/hal.$(BOARD).o
 OBJS_PROTO	:= $(SRCS_PROTO:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_LIB	:= $(DIR_OBJ)/src/libknp.$(BOARD).o
-OBJS_FW		:= 
+OBJS_FW		:= $(DIR_OBJ)/src/firmware.$(BOARD).o
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o)
 
 # flags
-CFLAGS  = -fPIC \
+# -fPIC, python needs, avr doesn't support
+# -mmcu=$(MCU) avr need it
+CFLAGS  = \
+	  -fPIC \
 	  -D__GIT_REVPARSE__=0x$(shell git rev-parse --short HEAD) \
-	  -D__FIRMWARE_ARCH_$(shell echo $(MCU) | tr a-z A-Z)__ \
+	  -D__FIRMWARE_ARCH_$(shell echo $(ARCH) | tr a-z A-Z)__ \
+	  -D__FIRMWARE_MCU_$(shell echo $(MCU) | tr a-z A-Z)__ \
 	  -D__FIRMWARE_BOARD_$(shell echo $(BOARD) | tr a-z A-Z)__ \
 	  $(INCLUDE)
 LDFLAGS = -pthread -lutil -lm -lrt
@@ -119,7 +134,14 @@ lib: build $(TARGET_LIB)
 fw: build $(TARGET_FW)
 host: build $(TARGET_HOST)
 
-$(DIR_OBJ)/src/hal/arch.$(BOARD).o: src/hal/arch_$(MCU).c
+generic328p:
+	@make BOARD=generic328p all
+generic328p_fw:
+	@make BOARD=generic328p fw
+generic328p_py:
+	@make BOARD=generic328p py
+
+$(DIR_OBJ)/src/hal/arch.$(BOARD).o: src/hal/arch_$(ARCH).c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
@@ -128,6 +150,10 @@ $(DIR_OBJ)/src/hal/board.$(BOARD).o: src/hal/board_$(BOARD).c
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(DIR_OBJ)/src/hal.$(BOARD).o: src/hal.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c $< -o $@ 
+
+$(DIR_OBJ)/src/firmware.$(BOARD).o: src/firmware_$(BOARD).c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
@@ -143,14 +169,13 @@ $(TARGET_PROTO): $(OBJS_PROTO)
 	@mkdir -p $(@D)
 	$(AR) rcs $(TARGET_PROTO) $(OBJS_PROTO)
 
-$(TARGET_LIB): $(TARGET_HAL) $(TARGET_PROTO)
+$(TARGET_LIB): $(TARGET_HAL) $(TARGET_PROTO) $(OBJS_LIB)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $(DIR_OBJ)/src/libknp.$(BOARD).o -c src/libknp.c 
 	$(AR) rcs $(TARGET_LIB) $(OBJS_HAL) $(OBJS_PROTO) $(OBJS_LIB)
 
-$(TARGET_FW): $(TARGET_LIB)
+$(TARGET_FW): $(TARGET_LIB) $(OBJS_FW)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET_FW) $(SRCS_FW) -L$(DIR_OBJ) -l:libknp.$(BOARD).a
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET_FW) $(OBJS_FW) -L$(DIR_OBJ) -l:libknp.$(BOARD).a
 
 $(TARGET_HOST): py $(OBJS_HOST)
 	@mkdir -p $(@D)

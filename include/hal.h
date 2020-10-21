@@ -11,11 +11,7 @@
 extern "C" {
 #endif
 
-#include <utility/macros.h>
-#include <hal/arch.h>
 #include <hal/board.h>
-#include <inttypes.h>	// for uint8_t
-#include <stdio.h>		// for size_t
 
 	typedef struct pin_status_s {
 		volatile uint8_t mode; // refer to protocol for known modes
@@ -26,23 +22,36 @@ extern "C" {
 	// in-use pins status, array index is the pin number
 	extern pin_status_t *pin_status;
 	extern uint8_t pin_status_size;
+	// preferred pins (16 preferred pins, for easy access)
+	extern pin_status_t *preferred_pin[16];
+	// pin groups (4 groups of 16 pins each, for easy access)
+	extern pin_status_t *pin_group[4][16];
 
-	extern commport_t *binConsole; // serial port for binary control messages
-	extern commport_t *txtConsole; // serial port for text messages and user interactive console
-	extern commport_t *peering; // serial port for p2p messages with other MCUs (ex: sync)
-
+	//
 	void halInit(void);
 	void halRun(void);
+	uint16_t halPause(uint16_t delay);
+	uint16_t halResume(uint16_t time);
+	void halReset(uint8_t mode);
 
-	void usePin(uint8_t pin, uint8_t mode);
-	void freePin(uint8_t pin);
+	// pins
+	uint8_t pinIsFree(uint8_t pin);
+	void pinUse(uint8_t pin, uint8_t mode);
+	void pinPrefer(uint8_t pin, uint8_t pos);
+	void pinGroup(uint8_t pin, uint8_t group, uint8_t pos);
+	void pinMode(uint8_t pin, uint8_t mode);
+	uint8_t pinRead(uint8_t pin, uint8_t timeout);
+	void pinWrite(uint8_t pin, uint8_t value);
+	void pinFree(uint8_t pin);
 
+	// comm ports
 	uint8_t binRecv(uint8_t argc, uint8_t *argv, uint8_t timeout);
 	uint8_t txtRecv(uint8_t argc, uint8_t *argv, uint8_t timeout);
+	uint8_t errRecv(uint8_t argc, uint8_t *argv, uint8_t timeout);
 	uint8_t peerRecv(uint8_t argc, uint8_t *argv, uint8_t timeout);
-
 	void binSend(uint8_t argc, uint8_t *argv);
 	void txtSend(uint8_t argc, uint8_t *argv);
+	void errSend(uint8_t argc, uint8_t *argv);
 	void peerSend(uint8_t argc, uint8_t *argv);
 
 #ifdef __cplusplus

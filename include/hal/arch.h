@@ -11,14 +11,13 @@
 extern "C" {
 #endif
 
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <inttypes.h>
 #include <hal/platform.h>
+#include <inttypes.h>
 
-// TYPEDEFs
+// time keeping
+extern volatile uint16_t tmicro;
+extern volatile uint16_t tmilli;
+extern volatile uint16_t tsecond;
 
 // 1ms pulsing frame
 // 	- 8 max pulsing pins (each pulse element is a 8 bit value, each bit represent 1 pin value)
@@ -34,59 +33,35 @@ typedef struct pin_pulsing_s {
 	volatile pin_frame_t *head;
 	volatile pin_frame_t *tail;
 } pin_pulsing_t;
-//
-typedef struct commport_s commport_t;
-struct commport_s {
-	uint8_t type;
-	uint8_t no;
-	uint8_t fd;
-	uint32_t baud;
-	uint8_t (*begin)(commport_t *port, uint32_t baud);
-	uint8_t (*available)(commport_t *port);
-	uint8_t (*read)(commport_t *port, uint8_t *data, uint8_t count, uint16_t timeout);
-	uint8_t (*write)(commport_t *port, uint8_t *data, uint8_t count, uint16_t timeout);
-	uint8_t (*end)(commport_t *port);
-};
 
 
-// VARs
-
-// time since boot
-extern volatile uint16_t tnano;
-extern volatile uint16_t tmicro;
-extern volatile uint16_t tmilli;
-extern volatile uint16_t tsecond;
+// pins
+extern volatile uint8_t pin[PIN_TOTAL];
 // adc
-extern volatile uint8_t adc_enable[16];
-extern volatile uint8_t adc_value[16];
-extern volatile uint8_t adc_current;
+extern volatile uint8_t pin_adc_enable[16];
+extern volatile uint8_t pin_adc_value[16];
+extern volatile uint8_t pin_adc_current;
 // pulsing pins
-extern volatile pin_pulsing_t pulsing;
-//
-extern commport_t *ports;
-extern uint8_t ports_no;
-extern commport_t *console;
+extern volatile pin_pulsing_t pin_pulsing;
 
-
-// FUNCTIONs
 
 // TIME
-uint16_t nanos(void);
+uint16_t cycles(void);
 uint16_t micros(void);
 uint16_t millis(void);
 uint16_t seconds(void);
 uint16_t uelapsed(uint16_t mstart, uint16_t ustart, uint16_t uend, uint16_t mend);
 
 // PORTs
-uint8_t port_read(uint8_t pin);
-uint8_t port_write(uint8_t pin);
+uint8_t port_read(uint8_t pin, uint8_t timeout);
+uint8_t port_write(uint8_t port, uint8_t value);
 
 // PINs
 // Set pin to input/output mode.
 void pin_mode(uint8_t pin, uint8_t mode);
 // Return current pin state.
-uint8_t pin_read(uint8_t pin);
-uint16_t pin_read_adc(uint8_t pin);
+uint8_t pin_read(uint8_t pin, uint8_t timeout);
+uint16_t pin_read_adc(uint8_t pin, uint8_t timeout);
 // Set pin low(0). Shorthand for write(LOW).
 void pin_set_low(uint8_t pin);
 // Set pin high(1). Shorthand for write(HIGH).
@@ -95,14 +70,11 @@ void pin_set_high(uint8_t pin);
 void pin_toggle(uint8_t pin);
 // Set pin to given state. Non-zero value will set the pin HIGH, and zero value will set the pin LOW.
 void pin_write(uint8_t pin, uint8_t value);
+void pin_write_pwm(uint8_t pin, uint16_t value);
 // Used with input() to activate internal pullup resistor on
 void pin_pullup_enable(uint8_t pin);
 // Open-drain pin. Use input() for high and output() for low.
 void pin_open_drain(uint8_t pin);
-// read an 8 bit port
-unsigned char pin_port_read(uint8_t port, uint8_t bitmask);
-// write an 8 bit port, only touch pins specified by a bitmask
-unsigned char pin_port_write(uint8_t port, uint8_t value, uint8_t bitmask);
 
 // PULSING
 // Detect a single pulse and return its width in micro-seconds.
@@ -112,32 +84,8 @@ void pin_pulse_single(uint8_t pin, uint16_t width);
 // Add 1 frame at 'milli(seconds)' to pulsing queue
 volatile pin_frame_t* pin_pulse_multi(uint16_t milli);
 
-
-// COMM PORTS
-// register a new commport_t
-commport_t* commport_register(uint8_t type, uint8_t no);
-// setup device and return the FD
-uint8_t uart_begin(commport_t *uart, uint32_t baud);
-// return 1 if data available to read, else 0
-uint8_t uart_available(commport_t *uart);
-// read count bytes from data within timeout
-uint8_t uart_read(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout);
-// write count bytes from data within timeout
-uint8_t uart_write(commport_t *uart, uint8_t *data, uint8_t count, uint16_t timeout);
-// close the device
-uint8_t uart_end(commport_t *uart);
-// TODO Same for: onewire, i2c, spi
-
-
 // ARCH
 void vars_reset(void);
-void commports_reset(void);
-
-// console&stdout&stderr
-typedef void (*fptr_variable_t)(const char *format, ...);
-extern fptr_variable_t binWrite;
-extern fptr_variable_t txtWrite;
-extern fptr_variable_t errWrite;
 
 // init MCU
 void _arch_init(void); // arch specific

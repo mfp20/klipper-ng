@@ -1,23 +1,28 @@
 
 #include <hal/arch.h>
+#include <stddef.h>
+#include <stdlib.h>
+
+volatile uint16_t tmicro = 0;
+volatile uint16_t tmilli = 0;
+volatile uint16_t tsecond = 0;
+
+volatile uint8_t pin[PIN_TOTAL];
+volatile uint8_t pin_adc_enable[16];
+volatile uint8_t pin_adc_value[16];
+volatile uint8_t pin_adc_current = 0;
+volatile pin_pulsing_t pin_pulsing;
 
 uint16_t uelapsed(uint16_t mstart, uint16_t ustart, uint16_t uend, uint16_t mend) {
-	// less than 1ms, within the same millisecond interval
-	if (mstart==mend) {
-		if (uend>ustart) {
-			return uend-ustart;
-		} else {
-			return (1000-ustart)+uend;
-		}
-		// less than 1ms, across 2ms interval
-	} else if (mend==mstart+1) {
+	if (mstart==mend) { // less than 1ms, within the same millisecond interval
+		return uend-ustart;
+	} else if (mend==mstart+1) { // less than 1ms, across 2ms interval
 		if (uend>ustart) {
 			return (1000-ustart)+uend;
 		} else {
 			return (1000-ustart)+uend;
 		}
-		// more than 1ms
-	} else {
+	} else { // more than 1ms
 		if (mend>mstart) {
 			return ((mend-mstart-1)*1000)+((1000-ustart)+uend);
 		} else {
@@ -27,41 +32,25 @@ uint16_t uelapsed(uint16_t mstart, uint16_t ustart, uint16_t uend, uint16_t mend
 }
 
 void vars_reset(void) {
+	tmicro = 0;
+	tmilli = 0;
+	tsecond = 0;
 	//
 	for (uint8_t i = 0;i<8;i++) {
-		adc_enable[i] = 0;
-		adc_value[i] = 0;
+		pin_adc_enable[i] = 0;
+		pin_adc_value[i] = 0;
 	}
 	//
 	for (uint8_t i = 0;i<8;i++) {
-		pulsing.pin[i] = 0;
+		pin_pulsing.pin[i] = 0;
 	}
-	pulsing.head = NULL;
-	pulsing.tail = NULL;
-	//printf("vars_reset() OK\n");
-}
-
-void commports_reset(void) {
-	if (ports != NULL)
-		for (int i=0;i<=ports_no;i++) {
-			if (ports[i].fd != 0) {
-				//printf("port %d, fd %d", i, ports[i].fd);
-				ports[i].end(&ports[i]);
-			}
-		}
-	//if (ports != NULL) free(ports);
-	ports = (commport_t *)realloc(ports, sizeof(commport_t));
-	ports_no = 0;
-	console = NULL;
-	//printf("commports_reset() OK\n");
+	pin_pulsing.head = NULL;
+	pin_pulsing.tail = NULL;
 }
 
 void arch_init(void) {
 	vars_reset();
-	commports_reset();
-	// arch specific
 	_arch_init();
-	//printf("arch_init OK\n");
 }
 
 void arch_run(void) {
@@ -70,7 +59,6 @@ void arch_run(void) {
 
 uint8_t arch_reset(void) {
 	_arch_reset();
-	commports_reset();
 	vars_reset();
 	return 0;
 }
