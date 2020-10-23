@@ -8,7 +8,7 @@
 import logging, sys, time, multiprocessing, concurrent.futures, random
 from text import msg
 from error import KError as error
-import process, tree, pyknp
+import process, tree, chelper
 logger = logging.getLogger(__name__)
 
 _NOW = 0.
@@ -88,7 +88,7 @@ class ProcessCallback:
     def result(self):
         "Return the current result."
         return self.completion.result
-
+            
 class Process(process.Base, tree.Part):
     "Multiprocessing reactor."
     NEVER = _NEVER
@@ -118,7 +118,7 @@ class Process(process.Base, tree.Part):
         "Set back unpickle-ables."
         # TODO
         self.__dict__.update(state)
-        self.monotonic = pyknp.lib.arch_monotonic
+        self.monotonic = chelper.get_ffi()[1].get_monotonic
         self._timers = []
         self._pipe, subpipe = multiprocessing.Pipe()
         process.worker_start(self, (subpipe,_NEVER))
@@ -238,13 +238,13 @@ class Process(process.Base, tree.Part):
         if callback:
             cb.completion.future.add_done_callback(callback)
         return cb.completion
-
+        
 #
 # Co-routine (greenlet) version (ie: cpu cores < 3)
 #
 
 # NOTE: need to test multiprocessing on single core cpu first.
-# If older single-core boards (ex: Rpi 0-2) die for too many context switches,
+# If older single-core boards (ex: Rpi 0-2) die for too many context switches, 
 # paste here pristine old reactor and adapt it to have the same class fingerprint.
 
 # single process, fallback in case poll method isn't available

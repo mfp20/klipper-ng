@@ -1,8 +1,8 @@
-# Printer Master:
+# Printer Master: 
 # - setup,
 # - events loop,
 # - setup restart/reload/save/restore/standby/exit
-#
+# 
 # Copyright (C) 2016-2018 Kevin O'Connor <kevin@koconnor.net>
 # Copyright (C) 2020 Anichang <anichang@protonmail.ch>
 #
@@ -11,16 +11,16 @@
 import logging, time, threading, multiprocessing
 from text import msg
 from error import KError as error
-import tree, pyknp, process, hal
+import tree, chelper, process, hal
 logger = logging.getLogger(__name__)
 
-# - init hardware manager (ie: hw abstraction layer),
+# - init hardware manager (ie: hw abstraction layer), 
 # - manage processes and threads
 class Master(tree.Root):
     def __init__(self, name, args, exit_codes):
         super().__init__(name, hal = None)
         # system timer
-        self.monotonic = pyknp.lib.arch_monotonic
+        self.monotonic = chelper.get_ffi()[1].get_monotonic
         #
         self.args = args
         self.ecodes = exit_codes

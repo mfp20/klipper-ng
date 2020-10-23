@@ -9,24 +9,31 @@
 
 // TIME -----------------------------------------------------------------------------------
 
-static uint64_t ticks() {
+static uint64_t arch_ticks() {
 	unsigned bogo;
 	return __rdtscp(&bogo); // read intel TSC cycles counter
+}
+
+struct timespec arch_monotonic_ts(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+	return ts;
+}
+
+double arch_monotonic(void) {
+	struct timespec ts = arch_monotonic_ts();
+	return (double)ts.tv_sec + (double)ts.tv_nsec * .000000001;
 }
 
 static pthread_t timer_thread_id;
 static pthread_mutex_t timer_lock;
 static void _timer_handler(int signum) {
+	struct timespec ts = arch_monotonic_ts();
 	pthread_mutex_lock(&timer_lock);
-	tmicro+=100;
-	if(tmicro>=999) {
-		tmilli++;
-		tmicro=0;
-	}
-	if(tmilli>=999) {
-		tsecond++;
-		tmilli=0;
-	}
+	tsecond = ts.tv_sec;
+	tmilli = ts.tv_nsec/1000000;
+    tmicro = (ts.tv_nsec%1000000)/1000;
+    tnano = ts.tv_nsec%1000;
 	pthread_mutex_unlock(&timer_lock);
 }
 static void * _timer_thread(void *data) {
@@ -65,7 +72,14 @@ static void timer_clean() {
 }
 
 uint16_t cycles(void) {
-	return (uint16_t)(ticks() & 0x000000000000FFFF);
+	return (uint16_t)(arch_ticks() & 0x000000000000FFFF);
+}
+
+uint16_t nanos(void) {
+	pthread_mutex_lock(&timer_lock);
+	uint16_t t = tnano;
+	pthread_mutex_unlock(&timer_lock);
+	return t;
 }
 
 uint16_t micros(void) {
@@ -88,6 +102,20 @@ uint16_t seconds(void) {
 	pthread_mutex_unlock(&timer_lock);
 	return t;
 }
+
+
+// PORT GET/SET -----------------------------------------------------------------------------
+
+uint8_t port_read(uint8_t pin, uint8_t timeout) {
+	usleep(1);
+	return 0;
+}
+
+uint8_t port_write(uint8_t pin, uint8_t value) {
+	usleep(1);
+	return 0;
+}
+
 
 // PIN GET/SET ----------------------------------------------------------------------------
 
@@ -115,6 +143,10 @@ void pin_write(uint8_t pin, uint8_t value) {
 	usleep(1);
 }
 
+void pin_write_pwm(uint8_t pin, uint16_t value) {
+	usleep(1);
+}
+
 void pin_pullup_enable(uint8_t pin) {
 	usleep(1);
 }
@@ -135,6 +167,10 @@ static void pin_input_adc_run(void) {
 	} else {
 		pin_adc_current = 0;
 	}
+}
+
+uint16_t pin_read_adc(uint8_t pin, uint8_t timeout) {
+	return pin_adc_value[pin];
 }
 
 

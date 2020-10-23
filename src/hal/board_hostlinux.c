@@ -89,6 +89,26 @@ uint8_t fd_end(commport_t *cp) {
 	return 0;
 }
 
+uint8_t tty_begin(commport_t *cp, uint32_t baud) {
+	return 0;
+}
+
+uint8_t tty_available(commport_t *cp) {
+	return 0;
+}
+
+uint8_t tty_read(commport_t *cp, uint8_t *data, uint8_t count, uint16_t timeout) {
+	return 0;
+}
+
+uint8_t tty_write(commport_t *cp, uint8_t *data, uint8_t count, uint16_t timeout) {
+	return 0;
+}
+
+uint8_t tty_end(commport_t *cp) {
+	return 0;
+}
+
 commport_t* commport_register(uint8_t type, uint8_t no) {
 	// allocate ports array
 	port = (commport_t *)realloc(port, sizeof(commport_t)*(ports_no+1));

@@ -9,24 +9,31 @@
 
 // TIME -----------------------------------------------------------------------------------
 
-static uint64_t ticks() {
+static uint64_t arch_ticks() {
 	unsigned bogo;
 	return __rdtscp(&bogo); // read intel TSC cycles counter
+}
+
+struct timespec arch_monotonic_ts(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+	return ts;
+}
+
+double arch_monotonic(void) {
+	struct timespec ts = arch_monotonic_ts();
+	return (double)ts.tv_sec + (double)ts.tv_nsec * .000000001;
 }
 
 static pthread_t timer_thread_id;
 static pthread_mutex_t timer_lock;
 static void _timer_handler(int signum) {
+	struct timespec ts = arch_monotonic_ts();
 	pthread_mutex_lock(&timer_lock);
-	tmicro+=100;
-	if(tmicro>=999) {
-		tmilli++;
-		tmicro=0;
-	}
-	if(tmilli>=999) {
-		tsecond++;
-		tmilli=0;
-	}
+	tsecond = ts.tv_sec;
+	tmilli = ts.tv_nsec/1000000;
+    tmicro = (ts.tv_nsec%1000000)/1000;
+    tnano = ts.tv_nsec%1000;
 	pthread_mutex_unlock(&timer_lock);
 }
 static void * _timer_thread(void *data) {
@@ -38,10 +45,10 @@ static void * _timer_thread(void *data) {
 	sigaction(SIGALRM, &sa, NULL);
 	// configure the timer to expire after 1 usec...
 	timer.it_value.tv_sec = 0;
-	timer.it_value.tv_usec = 100;
+	timer.it_value.tv_usec = 50;
 	// ... and every 1 usec after that.
 	timer.it_interval.tv_sec = 0;
-	timer.it_interval.tv_usec = 100;
+	timer.it_interval.tv_usec = 50;
 	// start the virtual timer (countdown).
 	setitimer(ITIMER_REAL, &timer, NULL);
 	// loop&do nothing
@@ -65,7 +72,14 @@ static void timer_clean() {
 }
 
 uint16_t cycles(void) {
-	return (uint16_t)(ticks() & 0x000000000000FFFF);
+	return (uint16_t)(arch_ticks() & 0x000000000000FFFF);
+}
+
+uint16_t nanos(void) {
+	pthread_mutex_lock(&timer_lock);
+	uint16_t t = tnano;
+	pthread_mutex_unlock(&timer_lock);
+	return t;
 }
 
 uint16_t micros(void) {

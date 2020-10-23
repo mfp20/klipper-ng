@@ -5,6 +5,7 @@
 *.so
 *.bin
 build/
+log/
 __pycache__/
 _docs/
 _old/

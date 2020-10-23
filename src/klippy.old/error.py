@@ -1,9 +1,9 @@
 # Klippy custom exceptions handler.
-#
+# 
 # Copyright (C) 2020 Anichang <anichang@protonmail.ch>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-#
+# 
 # Examples at the end of this file.
 
 import logging

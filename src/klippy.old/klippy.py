@@ -47,7 +47,7 @@ def main():
                     default='log',
                     help="log directory (default is 'log')")
     # dictionary
-    parser.add_argument("-d", "--dictionary", dest="dict_file",
+    parser.add_argument("-d", "--dictionary", dest="dict_file", 
                     default=None,
                     help="file to read for mcu protocol dictionary")
     # input_debug
@@ -114,7 +114,7 @@ def main():
     # setup console
     if args.console:
         args.console = multiprocessing.Lock()
-    # services ready, let's start...
+    # services ready, let's start... 
     logger.info("--------------------")
     logger.info("* Starting Klippy...")
     if ps_log is not None:
@@ -138,7 +138,7 @@ def main():
         # config reload: new hal, new reactor, new tree, new ... printer
         if need_config:
             need_config = myprinter.setup()
-        # reactor go!
+        # reactor go! 
         exit_reason = myprinter.run()
         # evaluate exit reason (result)
         if exit_reason in ['exit', 'error']:

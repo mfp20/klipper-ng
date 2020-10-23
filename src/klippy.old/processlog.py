@@ -88,7 +88,7 @@ class Writer(process.Base):
             ch.setFormatter(self.formatter)
             logger.addHandler(ch)
         if file_level and log_dir:
-            fh = handlers.RotatingFileHandler(os.path.join(log_dir, f"{self._name}.log"), 'a', file_size, 10)
+            fh = handlers.RotatingFileHandler(os.path.join(log_dir, f"{self.name}.log"), 'a', file_size, 10)
             fh.setLevel(file_level.upper())
             fh.addFilter(FilterMeta())
             fh.addFilter(FilterMetaDevel())

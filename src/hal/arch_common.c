@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+volatile uint16_t tnano = 0;
 volatile uint16_t tmicro = 0;
 volatile uint16_t tmilli = 0;
 volatile uint16_t tsecond = 0;

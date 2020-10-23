@@ -15,6 +15,7 @@ extern "C" {
 #include <inttypes.h>
 
 // time keeping
+extern volatile uint16_t tnano;
 extern volatile uint16_t tmicro;
 extern volatile uint16_t tmilli;
 extern volatile uint16_t tsecond;
@@ -47,6 +48,7 @@ extern volatile pin_pulsing_t pin_pulsing;
 
 // TIME
 uint16_t cycles(void);
+uint16_t nanos(void);
 uint16_t micros(void);
 uint16_t millis(void);
 uint16_t seconds(void);

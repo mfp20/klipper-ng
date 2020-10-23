@@ -7,7 +7,7 @@
 import logging, multiprocessing, threading, select
 from text import msg
 from error import KError as error
-import util, process, pyknp
+import util, process, chelper, serialhdl
 logger = logging.getLogger(__name__)
 
 class Handler:
@@ -31,7 +31,7 @@ class HandlerTtyChelper(Handler):
         self.rts = rts
         self.ser = None
         # C interface
-        self.ffi_main, self.ffi_lib = pyknp.get_ffi()
+        self.ffi_main, self.ffi_lib = chelper.get_ffi()
         self.serialqueue = None
         self.default_cmd_queue = self.alloc_command_queue()
         self.stats_buf = self.ffi_main.new('char[4096]')
@@ -151,8 +151,8 @@ class FdProcess(process.Base):
                 fd = HandlerTtyVirtual(util.create_pty(obj['open']['filename']))
             elif obj['open']['tty']:
                 tty = obj['open']['tty']
-                if 'pyknp' in tty:
-                    #fd =
+                if 'chelper' in tty:
+                    #fd = 
                     pass
                 else:
                     # open hw tty

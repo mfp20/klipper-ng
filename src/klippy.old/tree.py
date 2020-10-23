@@ -4,7 +4,7 @@
 # - Root(composite).
 # - Builder:    create printer tree
 #               assemble hw parts into composite parts,
-#
+# 
 # Copyright (C) 2020 Anichang <anichang@protonmail.ch>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
@@ -63,7 +63,7 @@ class Node:
     def child_deep(self, name, root = None):
         "Get first child (deep recursion) which name starts with given name."
         if not root: root = self
-        if root.name().startswith(name):
+        if root.name().startswith(name): 
             return root
         for child in root._children.values():
            n = child.child_deep(name, child)
@@ -176,7 +176,7 @@ class Node:
             txt = txt + self._show_details(indent)
         # show children
         if "children" in options:
-            if len(self._children) < 1:
+            if len(self._children) < 1: 
                 txt = txt + startline + "\t* none" + newline
                 return txt
             for k in self._children.keys():
@@ -305,7 +305,7 @@ class Composite(Part):
 
 class Root(Composite):
     "Tree topology."
-    def __init__(self, name, hal):
+    def __init__(self, name, hal): 
         super().__init__(name, hal = hal)
         self.spare = Node("spare")
     def node(self, name):
@@ -442,7 +442,7 @@ class Builder:
                 if hasattr(node, "_configure") and callable(node._configure):
                     node._configure()
         # configure toolhead(s)
-        for t in self.hal.get_printer().children_deep_byname("toolhead ", list()):
+        for t in self.hal.get_printer().children_deep_byname("toolhead ", list()): 
             t._build()
         # init kinematics
         for k in self.hal.get_printer().children_deep_byname("kinematic ", list()):

@@ -215,7 +215,7 @@ class Manager(tree.Part):
             if parent.name() == "printer":
                 return None
             return self.get_kinematic_child(parent)
-    def cleanup(self):
+    def cleanup(self): 
         self.get_commander().cleanup()
         self.get_controller().cleanup()
         self.get_timing().cleanup()

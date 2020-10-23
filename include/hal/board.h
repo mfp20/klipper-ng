@@ -51,6 +51,13 @@ extern commport_t *peering; // serial port for p2p messages with other MCUs (ex:
 
 // COMM PORTS
 
+// FD
+uint8_t fd_begin(commport_t *cp, uint32_t baud);
+uint8_t fd_available(commport_t *cp);
+uint8_t fd_read(commport_t *cp, uint8_t *data, uint8_t count, uint16_t timeout);
+uint8_t fd_write(commport_t *cp, uint8_t *data, uint8_t count, uint16_t timeout);
+uint8_t fd_end(commport_t *cp);
+
 // TTY
 uint8_t tty_begin(commport_t *cp, uint32_t baud);
 uint8_t tty_available(commport_t *cp);

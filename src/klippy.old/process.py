@@ -7,7 +7,7 @@
 import logging, multiprocessing, threading, collections
 from text import msg
 from error import KError as error
-import pyknp
+import chelper
 logger = logging.getLogger(__name__)
 
 # used in all child processes to terminate loops and help join()/terminate()
@@ -75,7 +75,7 @@ class Base:
         # IPC
         self._pipe, self._subpipe = multiprocessing.Pipe()
         # system timer
-        self.monotonic = pyknp.lib.arch_monotonic
+        self.monotonic = chelper.get_ffi()[1].get_monotonic
     def setup(self):
         "To be overloaded by a process child class."
         logger.warning("Process not configured.")

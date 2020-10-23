@@ -7,7 +7,7 @@
 import logging, os, sys, cmd, re, time
 from text import msg
 from error import KError as error
-import util
+import util, commander
 logger = logging.getLogger(__name__)
 
 # commander's shell, base class
