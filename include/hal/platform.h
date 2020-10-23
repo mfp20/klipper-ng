@@ -455,7 +455,7 @@ enum pin_e {
 #define PWM_MIN_RESOLUTION  8		//
 #define PWM_MAX_RESOLUTION  8		//
 #define ADC_CH				1		// adc channels
-#define ONEWIRE_CH			PIN_TOTAL // 1wire interfaces
+#define ONEWIRE_CH			8		// 1wire interfaces
 #define TTY_CH				2		// tty interfaces
 #define I2C_CH				1		// i2c interfaces
 #define SPI_CH				1		// spi interfaces
@@ -464,16 +464,16 @@ enum pin_e {
 #define DEFAULT_BAUD		57600
 
 #elif defined(__FIRMWARE_BOARD_LINUX__)
-#define PWM_CH				1		// pwm channels
-#define PWM_MIN_RESOLUTION  8		//
-#define PWM_MAX_RESOLUTION  8		//
-#define ADC_CH				1		// adc channels
-#define ONEWIRE_CH			PIN_TOTAL // 1wire interfaces
-#define TTY_CH				2		// tty interfaces
-#define I2C_CH				1		// i2c interfaces
-#define SPI_CH				1		// spi interfaces
-#define RX_BUFFER_SIZE		64		// 1,2,4,8,16,32,64,128 or 256 bytes
-#define TX_BUFFER_SIZE		64		// 1,2,4,8,16,32,64,128 or 256 bytes
+#define PWM_CH				0
+#define PWM_MIN_RESOLUTION  0
+#define PWM_MAX_RESOLUTION  0
+#define ADC_CH				0
+#define ONEWIRE_CH			0
+#define TTY_CH				0
+#define I2C_CH				0
+#define SPI_CH				0
+#define RX_BUFFER_SIZE		64
+#define TX_BUFFER_SIZE		64
 #define DEFAULT_BAUD		57600
 
 #elif defined(__FIRMWARE_BOARD_RPI__)
@@ -481,7 +481,7 @@ enum pin_e {
 #define PWM_MIN_RESOLUTION  8		//
 #define PWM_MAX_RESOLUTION  8		//
 #define ADC_CH				1		// adc channels
-#define ONEWIRE_CH			PIN_TOTAL // 1wire interfaces
+#define ONEWIRE_CH			8		// 1wire interfaces
 #define TTY_CH				2		// tty interfaces
 #define I2C_CH				1		// i2c interfaces
 #define SPI_CH				1		// spi interfaces
@@ -494,7 +494,7 @@ enum pin_e {
 #define PWM_MIN_RESOLUTION  8		//
 #define PWM_MAX_RESOLUTION  8		//
 #define ADC_CH				1		// adc channels
-#define ONEWIRE_CH			PIN_TOTAL // 1wire interfaces
+#define ONEWIRE_CH			8		// 1wire interfaces
 #define TTY_CH				2		// tty interfaces
 #define I2C_CH				1		// i2c interfaces
 #define SPI_CH				1		// spi interfaces
@@ -507,7 +507,7 @@ enum pin_e {
 #define PWM_MIN_RESOLUTION  8
 #define PWM_MAX_RESOLUTION  8
 #define ADC_CH				8
-#define ONEWIRE_CH			PIN_TOTAL
+#define ONEWIRE_CH			8
 #define TTY_CH				1
 #define I2C_CH				1
 #define SPI_CH				1
@@ -520,7 +520,7 @@ enum pin_e {
 #define PWM_MIN_RESOLUTION  8
 #define PWM_MAX_RESOLUTION  8
 #define ADC_CH				8
-#define ONEWIRE_CH			PIN_TOTAL
+#define ONEWIRE_CH			8
 #define TTY_CH				2
 #define I2C_CH				1
 #define SPI_CH				1
@@ -533,7 +533,7 @@ enum pin_e {
 #define PWM_MIN_RESOLUTION  8
 #define PWM_MAX_RESOLUTION  8
 #define ADC_CH				16
-#define ONEWIRE_CH			PIN_TOTAL
+#define ONEWIRE_CH			8
 #define TTY_CH				4
 #define I2C_CH				1
 #define SPI_CH				1

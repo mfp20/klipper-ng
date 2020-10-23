@@ -143,26 +143,32 @@ generic328p_py:
 
 $(DIR_OBJ)/src/hal/arch.$(BOARD).o: src/hal/arch_$(ARCH).c
 	@mkdir -p $(@D)
+	cpp $(CFLAGS) -E -dM $< -o $@.i
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(DIR_OBJ)/src/hal/board.$(BOARD).o: src/hal/board_$(BOARD).c
 	@mkdir -p $(@D)
+	cpp $(CFLAGS) -E -dM $< -o $@.i
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(DIR_OBJ)/src/hal.$(BOARD).o: src/hal.c
 	@mkdir -p $(@D)
+	cpp $(CFLAGS) -E -dM $< -o $@.i
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(DIR_OBJ)/src/firmware.$(BOARD).o: src/firmware_$(BOARD).c
 	@mkdir -p $(@D)
+	cpp $(CFLAGS) -E -dM $< -o $@.i
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(DIR_OBJ)/%.$(BOARD).o: %.c
 	@mkdir -p $(@D)
+	cpp $(CFLAGS) -E -dM $< -o $@.i
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(TARGET_HAL): $(OBJS_HAL)
 	@mkdir -p $(@D)
+	cpp $(CFLAGS) -E include/hal/platform.h | grep "^[^#]" > $(DIR_OBJ)/src/hal/platform.h.i
 	$(AR) rcs $(TARGET_HAL) $(OBJS_HAL)
 
 $(TARGET_PROTO): $(OBJS_PROTO) 

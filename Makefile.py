@@ -1,21 +1,35 @@
 import pathlib
+import os
 import re
 import cffi
 
 DIR_H="include"
-DIR_BUILD="./build"
+DIR_BUILD="build"
 DIR_PY=DIR_BUILD+"/py"
 FILES=(
-        "pyknp_head.h",
-        "hal/arch.h",
-        #"hal/board.h",
-        #"hal.h",
-        #"protocol.h",
-        #"protocol_custom.h",
-        #"libknp.h",
-        "pyknp_tail.h",
+        DIR_BUILD+"/objs/src/hal/platform.h.i",
+        DIR_H+"/pyknp_head.h",
+        DIR_H+"/hal/arch.h",
+        DIR_H+"/hal/board.h",
+        DIR_H+"/hal.h",
+        DIR_H+"/protocol.h",
+        DIR_H+"/protocol_custom.h",
+        DIR_H+"/libknp.h",
+        DIR_H+"/pyknp_tail.h",
         )
 DEST=DIR_PY+'/pyknp.h'
+DEFINES_HEAD=(
+        "__FIRMWARE_ARCH_",
+        "__FIRMWARE_MCU_",
+        "__FIRMWARE_BOARD_",
+        "PIN_TOTAL",
+        "PWM_CH",
+        "ADC_CH",
+        "ONEWIRE_CH",
+        "TTY_CH",
+        "I2C_CH",
+        "SPI_CH"
+        )
 
 print("- Composing pyknp.h file.")
 
@@ -73,23 +87,62 @@ def removeCFFIUnsupported(line):
             return ''
     return line
 
+def searchInfoFiles(dirName):
+    # create a list of file and sub directories names in the given directory
+    listOfFile = os.listdir(dirName)
+    iFiles = list()
+    # Iterate over all the entries
+    for entry in listOfFile:
+        # Create full path
+        fullPath = os.path.join(dirName, entry)
+        # If entry is a directory then get the list of files in this directory
+        if os.path.isdir(fullPath):
+            iFiles = iFiles + searchInfoFiles(fullPath)
+        elif (fullPath.endswith(".i")):
+            iFiles.append(fullPath)
+    return iFiles
+
+def searchDefine(name,iFiles):
+    found = ""
+    for iFile in iFiles:
+        searchfile = open(iFile, "r")
+        for line in searchfile:
+            if "#define "+name in line:
+                found = line
+                break
+        searchfile.close()
+        if found!="":
+            break
+    return found
+
+def addDefines(destination):
+    iFiles = searchInfoFiles("build/")
+    line = ""
+    for define in DEFINES_HEAD:
+        line = searchDefine(define,iFiles)
+        if line=="":
+            print("WARNING: '#define "+define+"' NOT FOUND!!!")
+        else:
+            print(line)
+            destination.write(line)
+
 destination = open(DEST,'w')
+addDefines(destination)
 for f in FILES:
-    header = open(DIR_H+"/"+f, 'r')
+    header = open(f, 'r')
     for line in header.readlines():
         good = removeCFFIUnsupported(line)
         if good:
             destination.write(good)
-    header.close()
+            header.close()
 destination.close()
-
 
 print("- Building pyknp CFFI Python module")
 
 ffi = cffi.FFI()
 # read header
 this_dir = pathlib.Path().absolute()
-h_file_name = this_dir / "build/py/pyknp.h"
+h_file_name = this_dir / DEST
 with open(h_file_name) as h_file:
     ffi.cdef(h_file.read())
 # configure

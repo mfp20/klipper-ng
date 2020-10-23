@@ -32,7 +32,6 @@ struct commport_s {
 };
 
 //
-extern uint8_t pins[PIN_TOTAL];
 extern uint8_t pins_pwm[PWM_CH];
 extern uint8_t pins_adc[ADC_CH];
 extern uint8_t pins_1wire[ONEWIRE_CH];
