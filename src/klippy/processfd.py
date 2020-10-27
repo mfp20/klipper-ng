@@ -38,12 +38,14 @@ class HandlerTtyChelper(Handler):
         # Threading
         self.lock = threading.Lock()
         self.background_thread = None
+
     def _bg_thread(self):
         response = self.ffi_main.new('struct pull_queue_message *')
         while 1:
             self.ffi_lib.serialqueue_pull(self.serialqueue, response)
             count = response.len
             # ...
+
     def connect(self):
         # Initial connection
         logger.debug("- Starting serial connect to '%s' at '%s' baud.", self.serialport, self.baud)
@@ -63,18 +65,22 @@ class HandlerTtyChelper(Handler):
             self.serialqueue = self.ffi_lib.serialqueue_alloc(self.fd, 0)
             self.background_thread = threading.Thread(name='polling:mcu at '+self.serialport, target=self._bg_thread)
             self.background_thread.start()
-    #
+
     def alloc_command_queue(self):
         return self.ffi_main.gc(self.ffi_lib.serialqueue_alloc_commandqueue(), self.ffi_lib.serialqueue_free_commandqueue)
+
     def get_default_command_queue(self):
         return self.default_cmd_queue
+
     def raw_send(self, cmd, minclock, reqclock, cmd_queue):
         self.ffi_lib.serialqueue_send(self.serialqueue, cmd_queue, cmd, len(cmd), minclock, reqclock, 0)
+
     def stats(self, eventtime):
         if self.serialqueue is None:
             return ""
         self.ffi_lib.serialqueue_get_stats(self.serialqueue, self.stats_buf, len(self.stats_buf))
         return self.ffi_main.string(self.stats_buf)
+
     def dump_debug(self):
         out = []
         out.append("Dumping serial stats: %s" % (self.stats(self.hal.get_reactor().monotonic()),))
@@ -94,7 +100,7 @@ class HandlerTtyChelper(Handler):
             cmds = self.msgparser.dump(msg.msg[0:msg.len])
             out.append("Receive: %d %f %f %d: %s" % (i, msg.receive_time, msg.sent_time, msg.len, ', '.join(cmds)))
         return '\n'.join(out)
-    #
+
     def disconnect(self):
         if self.serialqueue is not None:
             self.ffi_lib.serialqueue_exit(self.serialqueue)
@@ -105,6 +111,7 @@ class HandlerTtyChelper(Handler):
         if self.ser is not None:
             self.ser.close()
             self.ser = None
+
     def __del__(self):
         self.disconnect()
 
@@ -116,6 +123,7 @@ class FdProcess(process.Base):
         process.worker_start(self, (self._subpipe,))
         # list of opened file descriptors
         self.fd = []
+
     def _poll_fds(self):
         # poll
         while self._running.is_set():
@@ -140,6 +148,7 @@ class FdProcess(process.Base):
                     self.message_lock.acquire()
                     self.message[len(self.message)] = obj
                     self.message_lock.release()
+
     def _dispatch(self, eventtime, obj):
         "Dispatch an incoming message accordingly."
         if 'showth' in obj:
@@ -202,6 +211,7 @@ class FdProcess(process.Base):
             self.message[len(self.message)] = obj
             self.message_lock.release()
             return False
+
     def _runner(self, *args):
         "FD process runner."
         self._subpipe = args[0]
@@ -244,6 +254,7 @@ class FdProcess(process.Base):
                 self.message_lock.release()
         for fd in self.fd.keys():
             fd.close()
+
     def open(self, filename, mode = "rb", chunksize = 4096, tty = False, poll = False):
         "Add a file to be accessed."
         opts = {'filename':filename, 'mode':mode, 'chunksize':chunksize, 'tty':tty, 'poll':poll}
@@ -252,6 +263,7 @@ class FdProcess(process.Base):
             self.fd.append(self._pipe.recv())
             return self.fd[-1]
         return None
+
     def info(self, fd):
         "Return info about the given file descriptor."
         ic = {'info': fd}
@@ -259,6 +271,7 @@ class FdProcess(process.Base):
         if self._pipe.poll(5):
             return self._pipe.recv()
         return None
+
     def ident(self, filename):
         "Return (fd,info) of the given filename."
         for fd in self.fd:
@@ -266,14 +279,17 @@ class FdProcess(process.Base):
             if info['filename'] == filename:
                 return fd, info
         return None
+
     def seek(self, fd, pos):
         "Seek position of the given file descriptor."
         sc = {'seek': fd, 'pos': pos}
         self._pipe.send(sc)
+
     def truncate(self, fd):
         "Truncate file at the current file descriptor position."
         tc = {'truncate': fd}
         self._pipe.send(tc)
+
     def read(self, fd, size = None):
         "Read sized data from given file descriptor."
         rc = {'read':fd}
@@ -283,6 +299,7 @@ class FdProcess(process.Base):
         if self._pipe.poll(5):
             return self._pipe.recv()
         return None
+
     def write(self, fd, data):
         "Write data to the given file descriptor."
         wc = {'write':fd, 'data':data}
@@ -290,6 +307,7 @@ class FdProcess(process.Base):
         if self._pipe.poll(5):
             return self._pipe.recv()
         return None
+
     def close(self, fd):
         "Close the given file descriptor."
         self._pipe.send({'close':fd})

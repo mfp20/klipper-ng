@@ -73,25 +73,25 @@ DIR_PY := $(DIR_BUILD)/py
 DIR_APP	:= $(DIR_BUILD)/bin
 #INCLUDE	:= -Iinclude/ -I/usr/avr/include
 INCLUDE	:= -Iinclude/
+
 SRCS_UTIL	:= $(wildcard src/utility/*.c)
-SRCS_HAL	:= src/hal/arch_common.c \
-			src/hal/arch_$(ARCH).c \
-			src/hal/board_common.c \
-			src/hal/board_$(BOARD).c
+SRCS_HAL	:= $(wildcard src/utility/*.$(ARCH).c) \
+			src/hal/arch.c \
+			src/hal/arch.$(ARCH).c \
+			src/hal/board.c \
+			src/hal/board.$(BOARD).c \
+			src/hal.c
 SRCS_PROTO	:= src/protocol.c
 SRCS_LIB	:= src/libknp.c
-SRCS_FW		:= src/firmware_$(BOARD).c
+SRCS_FW		:= src/firmware.$(BOARD).c
 SRCS_HOST	:= $(wildcard src/host/chelper/*.c)
-OBJS_UTIL	:= $(SRCS_UTIL:%.c=$(DIR_OBJ)/%.o)
-OBJS_HAL	:= $(DIR_OBJ)/src/hal/arch_common.$(BOARD).o \
-			$(DIR_OBJ)/src/hal/arch.$(BOARD).o \
-			$(DIR_OBJ)/src/hal/board_common.$(BOARD).o \
-			$(DIR_OBJ)/src/hal/board.$(BOARD).o \
-			$(DIR_OBJ)/src/hal.$(BOARD).o
+
+OBJS_UTIL	:= $(SRCS_UTIL:%.c=$(DIR_OBJ)/%.$(BOARD).o)
+OBJS_HAL	:= $(SRCS_HAL:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_PROTO	:= $(SRCS_PROTO:%.c=$(DIR_OBJ)/%.$(BOARD).o)
-OBJS_LIB	:= $(DIR_OBJ)/src/libknp.$(BOARD).o
-OBJS_FW		:= $(DIR_OBJ)/src/firmware.$(BOARD).o
-OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.o)
+OBJS_LIB	:= $(SRCS_LIB:%.c=$(DIR_OBJ)/%.$(BOARD).o)
+OBJS_FW		:= $(SRCS_FW:%.c=$(DIR_OBJ)/%.$(BOARD).o)
+OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 
 # flags
 # -fPIC, python needs, avr doesn't support
@@ -141,32 +141,14 @@ generic328p_fw:
 generic328p_py:
 	@make BOARD=generic328p py
 
-$(DIR_OBJ)/src/hal/arch.$(BOARD).o: src/hal/arch_$(ARCH).c
-	@mkdir -p $(@D)
-	cpp $(CFLAGS) -E -dM $< -o $@.i
-	$(CC) $(CFLAGS) -c $< -o $@ 
-
-$(DIR_OBJ)/src/hal/board.$(BOARD).o: src/hal/board_$(BOARD).c
-	@mkdir -p $(@D)
-	cpp $(CFLAGS) -E -dM $< -o $@.i
-	$(CC) $(CFLAGS) -c $< -o $@ 
-
-$(DIR_OBJ)/src/hal.$(BOARD).o: src/hal.c
-	@mkdir -p $(@D)
-	cpp $(CFLAGS) -E -dM $< -o $@.i
-	$(CC) $(CFLAGS) -c $< -o $@ 
-
-$(DIR_OBJ)/src/firmware.$(BOARD).o: src/firmware_$(BOARD).c
-	@mkdir -p $(@D)
-	cpp $(CFLAGS) -E -dM $< -o $@.i
-	$(CC) $(CFLAGS) -c $< -o $@ 
-
-$(DIR_OBJ)/%.$(BOARD).o: %.c
+$(DIR_OBJ)/src/%.$(BOARD).o: src/%.c
 	@mkdir -p $(@D)
 	cpp $(CFLAGS) -E -dM $< -o $@.i
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(TARGET_HAL): $(OBJS_HAL)
+	echo $(ARCH)
+	echo $(SRCS_HAL)
 	@mkdir -p $(@D)
 	cpp $(CFLAGS) -E include/hal/platform.h | grep "^[^#]" > $(DIR_OBJ)/src/hal/platform.h.i
 	$(AR) rcs $(TARGET_HAL) $(OBJS_HAL)
