@@ -21,7 +21,6 @@ extern "C" {
 
 	// tasks
 	extern task_t *tasks;
-	extern task_t *running;
 
 	// init once before looping run()
 	void init(char *name, char *ver);
@@ -31,21 +30,17 @@ extern "C" {
 	// send a string to the other side of the connection
 	void remoteLog(const char *format, ...);
 
+	// receive 1 event
+	void getEvent(void);
 	// mcu side: run 1 event
 	void runEvent(uint8_t size, uint8_t *event);
-
+	// run events from scheduler (if any), at the right time
+	void runEventSched(uint16_t now);
 	// print event in buffer (or given event)
 	void printEvent(uint8_t size, uint8_t *event, char *output);
 
-	// receive and run 1 event
-	void newEvent(void);
-
-	// run scheduled events (if any), at the right time
-	void schedEvent(uint16_t now);
-
 	// run 1 tick
-	void run(void);
-
+	uint8_t run(void);
 
 	//
 	// commands to trigger events on the other side of the connection

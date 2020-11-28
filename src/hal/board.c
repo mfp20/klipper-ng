@@ -72,7 +72,6 @@ void commports_reset(void) {
 
 void board_init(void) {
 	_board_init();
-	stdoutPrint("- Board OK.\n");
 }
 
 void board_run(void) {

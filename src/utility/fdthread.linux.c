@@ -1,3 +1,4 @@
+
 #include <utility/fdthread.linux.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,18 +16,22 @@
 
 #define MAX_EVENTS 64
 
+const char *fd_pty_filename = "/tmp/klipper-ng-pty";
+int fd_idx = 3;
 static fd_t *fds;
 static int epoll_fd, running = 1, fdn = 0;
 static pthread_mutex_t fds_lock, rx_lock, tx_lock;
 static pthread_t epoll_th;
 
-fptr_alarm_t bufferFullHandler;
+fptr_alarm_t rBufferFullHandler;
+fptr_alarm_t wBufferFullHandler;
 
 static void *_epoll_th(void *data) {
 	int event_count, i;
 	size_t bytes_read;
 	struct epoll_event events[MAX_EVENTS];
 	while(running) {
+		//printf("epoll start\n");
 		// read polled fds
 		event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, 0);
 		pthread_mutex_lock(&fds_lock);
@@ -38,18 +43,21 @@ static void *_epoll_th(void *data) {
 				bytes_read = read(events[i].data.fd, (&fds[idx].rx_buffer)+fds[idx].rx_buffer_len, BLOCK_SIZE-fds[idx].rx_buffer_len);
 				fds[idx].rx_buffer_len += bytes_read;
 			} else {
-				if ((fds[idx].rx_buffer_len >= BLOCK_SIZE)&&(bufferFullHandler!=NULL)) bufferFullHandler(idx);
+				if ((fds[idx].rx_buffer_len >= BLOCK_SIZE)&&(rBufferFullHandler!=NULL)) rBufferFullHandler(idx);
 			}
 		}
 		pthread_mutex_unlock(&rx_lock);
 		int n = fdn, i = 0;
 		while (i<n) {
+			//printf("%d FDs, FD %d\n", n, i);
 			// read file fds
+			//printf("fds[%d].rx_buffer_len %d\n", i, fds[i].rx_buffer_len);
 			pthread_mutex_lock(&rx_lock);
-			if(fds[i].type == FD_TYPE_FILE) {
-				//printf("LOOP read %d\n", i);
+			if(fds[i].type == FD_TYPE_FILE||FD_TYPE_PTY) {
 				if (fds[i].rx_buffer_len<BLOCK_SIZE) {
+					printf("read %d, len %d\n", i, fds[i].rx_buffer_len);
 					int res = read(events[i].data.fd, (&fds[i].rx_buffer)+fds[i].rx_buffer_len, BLOCK_SIZE-fds[i].rx_buffer_len);
+					//printf("done %d\n", i);
 					if(res < 0) {
 						printf("Can't read fdid %d (%s)\n", i, strerror(errno));
 					} else {
@@ -59,9 +67,9 @@ static void *_epoll_th(void *data) {
 			}
 			pthread_mutex_unlock(&rx_lock);
 			// write fds
+			//printf("fds[%d].tx_buffer_len %d\n", i, fds[i].tx_buffer_len);
 			pthread_mutex_lock(&tx_lock);
 			if (fds[i].tx_buffer_len>0) {
-				//printf("LOOP write %d\n", i);
 				write(fds[i].event.data.fd, fds[i].tx_buffer, fds[i].tx_buffer_len);
 				fds[i].tx_buffer_len = 0;
 			}
@@ -70,6 +78,7 @@ static void *_epoll_th(void *data) {
 		}
 		pthread_mutex_unlock(&fds_lock);
 		usleep(1);
+		//printf("epoll stop\n");
 	}
 	return NULL;
 }
@@ -119,7 +128,6 @@ int fdCreatePty(const char *fname, uint8_t type) {
 	flags = fcntl(STDERR_FILENO, F_GETFL);
 	fcntl(STDERR_FILENO, F_SETFL, flags | O_NONBLOCK);
 	//
-	printf("- PTY ready @ %s\n", fname);
 	return mfd;
 }
 
@@ -129,11 +137,13 @@ int fdCreateSocket(const char *name, uint8_t type) {
 }
 
 int fdOpen(const char *fname, uint8_t type) {
+	int newfd = 0;
 	// create
 	if (access(fname, F_OK) < 0) {
 		if (type == FD_TYPE_FILE) fdCreateFile(fname, type);
-		else if (type == FD_TYPE_PTY) fdCreatePty(fname, type);
-		else fdCreateSocket(fname, type);
+		else if (type == FD_TYPE_PTY) newfd = fdCreatePty(fname, type);
+		else if (type == FD_TYPE_SOCKET) fdCreateSocket(fname, type);
+		else return -1;
 	}
 	// open
 	pthread_mutex_lock(&fds_lock);
@@ -141,7 +151,9 @@ int fdOpen(const char *fname, uint8_t type) {
 	pthread_mutex_unlock(&fds_lock);
 	fds[fdn].type = type;
 	fds[fdn].event.events = EPOLLIN;
-	fds[fdn].event.data.fd = open(fname, O_RDWR);
+	if (newfd) fds[fdn].event.data.fd = newfd;
+	else fds[fdn].event.data.fd = open(fname, O_RDWR|O_NONBLOCK);
+	printf("- open %s (fd %d)\n", fname, fds[fdn].event.data.fd);
 	if(fds[fdn].event.data.fd < 0) {
 		printf("Can't open file \"%s\" (%s)\n", fname, strerror(errno));
 		return fds[fdn].event.data.fd;
@@ -154,7 +166,7 @@ int fdOpen(const char *fname, uint8_t type) {
 	fds[fdn].tx_buffer = calloc(BLOCK_SIZE, sizeof(uint8_t));
 	fds[fdn].tx_buffer_len = 0;
 	pthread_mutex_unlock(&tx_lock);
-	if(type>0) {
+	if(type>1) {
 		int ret = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fds[fdn].event.data.fd, &fds[fdn].event);
 		if(ret) {
 			printf("Can't add \"%s\" to poll queue. (%s)\n", fname, strerror(errno));
@@ -180,7 +192,7 @@ int fdRead(int fdid, uint8_t *data) {
 	if(fds[fdid].type>0) {
 		pthread_mutex_lock(&rx_lock);
 		while (i<fds[fdid].rx_buffer_len) {
-			printf("fdid %d -> (%d) %d\n",fdid,i,data[i]);
+			//printf("fdid %d -> (%d) %d\n",fdid,i,data[i]);
 			data[i] = fds[fdid].rx_buffer[i];
 			i++;
 		}
@@ -193,16 +205,21 @@ int fdRead(int fdid, uint8_t *data) {
 }
 
 int fdWrite(int fdid, uint8_t *data, int len) {
-	int i = 0;
 	pthread_mutex_lock(&tx_lock);
+	if (fds[fdid].tx_buffer_len+len>BLOCK_SIZE) {
+		if (wBufferFullHandler!=NULL) wBufferFullHandler(fdid);
+		else printf("TX Buffer full.\n");
+		pthread_mutex_unlock(&tx_lock);
+		return 0;
+	}
+	int i = 0;
 	while (i<len) {
-		printf("(%d) %d -> fdid %d\n",i,data[i],fdid);
 		fds[fdid].tx_buffer[i] = data[i];
 		i++;
 	}
 	fds[fdid].tx_buffer_len += len;
 	pthread_mutex_unlock(&tx_lock);
-	return i;
+	return len;
 }
 
 int fdClose(int fdid) {

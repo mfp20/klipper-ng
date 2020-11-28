@@ -87,6 +87,8 @@ uint16_t halResume(uint16_t time) {
 }
 
 void halReset(uint8_t mode) {
+	board_reset();
+	arch_reset();
 	for (uint8_t i = 0; i < PIN_TOTAL; i++) {
 		pinFree(i);
 	}

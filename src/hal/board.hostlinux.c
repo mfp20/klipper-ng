@@ -5,27 +5,26 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 // FD
-static const char *fd_pty_filename = "/tmp/klipper-ng-pty";
-static int fd_idx = 3;
 uint8_t fd_begin(commport_t *cp, uint32_t baud) {
 	char *fname;
 	if (cp->id == 0) {
 		uint8_t len = strlen("/dev/stdin");
 		fname = calloc(len,sizeof(char));
 		strcpy(fname, "/dev/stdin");
-		cp->id = fdOpen(fname,FD_TYPE_TTY);
+		cp->id = fdOpen(fname,FD_TYPE_FILE);
 	} else if (cp->id == 1) {
 		uint8_t len = strlen("/dev/stdout");
 		fname = calloc(len,sizeof(char));
 		strcpy(fname, "/dev/stdout");
-		cp->id = fdOpen(fname,FD_TYPE_TTY);
+		cp->id = fdOpen(fname,FD_TYPE_FILE);
 	} else if (cp->id == 2) {
 		uint8_t len = strlen("/dev/stderr");
 		fname = calloc(len,sizeof(char));
 		strcpy(fname, "/dev/stderr");
-		cp->id = fdOpen(fname,FD_TYPE_TTY);
+		cp->id = fdOpen(fname,FD_TYPE_FILE);
 	} else {
 		char fnid[10];
 		sprintf(fnid, "%d", fd_idx);
@@ -34,11 +33,7 @@ uint8_t fd_begin(commport_t *cp, uint32_t baud) {
 		fname = calloc(len,sizeof(char));
 		strcpy(fname, fd_pty_filename);
 		strcat(fname, fnid);
-		if (cp->type == COMMPORT_TYPE_FD) {
-			cp->id = fdOpen(fname,FD_TYPE_FILE);
-		} else {
-			cp->id = fdOpen(fname,FD_TYPE_PTY);
-		}
+		cp->id = fdOpen(fname,FD_TYPE_PTY);
 	}
 	//
 	free(fname);
@@ -101,6 +96,8 @@ commport_t* commport_register(uint8_t type, uint8_t no) {
 }
 
 void _board_init(void) {
+	// init FD thread
+	initFdThread();
 	// init default ports
 	commport_register(COMMPORT_TYPE_TTY, 3);
 	port[0].begin(&port[0], DEFAULT_BAUD);
@@ -118,5 +115,6 @@ void _board_run(void) {
 }
 
 void _board_reset(void) {
+	closeFdThread();
 }
 

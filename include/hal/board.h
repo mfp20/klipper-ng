@@ -49,6 +49,7 @@ extern commport_t *txtConsole; // serial port for text messages and user interac
 extern commport_t *errConsole; // serial port for text error messages
 extern commport_t *peering; // serial port for p2p messages with other MCUs (ex: sync)
 
+
 // COMM PORTS
 
 // FD
@@ -72,6 +73,7 @@ void stdoutPrint(const char *format, ...);
 void stderrPrint(const char *format, ...);
 void peerPrint(const char *format, ...);
 void commports_reset(void);
+
 
 // init board (NOTE: not MCU, see arch_init() for MCU init)
 void _board_init(void);

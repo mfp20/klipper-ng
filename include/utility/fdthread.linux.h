@@ -27,7 +27,10 @@ typedef struct fd_s {
 
 typedef void (*fptr_alarm_t)(int fdid);
 
-extern fptr_alarm_t bufferFullHandler;
+extern const char *fd_pty_filename;
+extern int fd_idx;
+extern fptr_alarm_t rBufferFullHandler;
+extern fptr_alarm_t wBufferFullHandler;
 
 int initFdThread(void);
 int fdOpen(const char *fname, uint8_t type);

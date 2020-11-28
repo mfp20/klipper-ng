@@ -82,14 +82,18 @@ SRCS_HAL	:= $(wildcard src/utility/*.$(ARCH).c) \
 			src/hal/board.$(BOARD).c \
 			src/hal.c
 SRCS_PROTO	:= src/protocol.c
+SRCS_PRINTER	:=
 SRCS_LIB	:= src/libknp.c
+SRCS_READER	:= src/reader.c
 SRCS_FW		:= src/firmware.$(BOARD).c
 SRCS_HOST	:= $(wildcard src/host/chelper/*.c)
 
 OBJS_UTIL	:= $(SRCS_UTIL:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_HAL	:= $(SRCS_HAL:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_PROTO	:= $(SRCS_PROTO:%.c=$(DIR_OBJ)/%.$(BOARD).o)
+OBJS_PRINTER	:= $(SRCS_PRINTER:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_LIB	:= $(SRCS_LIB:%.c=$(DIR_OBJ)/%.$(BOARD).o)
+OBJS_READER	:= $(SRCS_READER:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_FW		:= $(SRCS_FW:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 
@@ -109,6 +113,7 @@ LDFLAGS = -pthread -lutil -lm -lrt
 TARGET_HAL	:= $(DIR_OBJ)/libhal.$(BOARD).a
 TARGET_PROTO	:= $(DIR_OBJ)/libproto.$(BOARD).a
 TARGET_LIB	:= $(DIR_OBJ)/libknp.$(BOARD).a
+TARGET_READER	:= $(DIR_APP)/reader.$(BOARD).bin
 TARGET_FW	:= $(DIR_APP)/klipper-ng.$(BOARD).bin
 TARGET_HOST	:= $(DIR_APP)/klippy-ng.elf
 
@@ -127,28 +132,12 @@ help:
 	@echo "to build the firmware for Melzi board."
 	@echo "WARNING: currently Linux simulator is the only supported board."
 
-all: build hal proto lib fw py host
-hal: build $(TARGET_HAL)
-proto: build $(TARGET_PROTO)
-lib: build $(TARGET_LIB)
-fw: build $(TARGET_FW)
-host: build $(TARGET_HOST)
-
-generic328p:
-	@make BOARD=generic328p all
-generic328p_fw:
-	@make BOARD=generic328p fw
-generic328p_py:
-	@make BOARD=generic328p py
-
 $(DIR_OBJ)/src/%.$(BOARD).o: src/%.c
 	@mkdir -p $(@D)
 	cpp $(CFLAGS) -E -dM $< -o $@.i
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(TARGET_HAL): $(OBJS_HAL)
-	echo $(ARCH)
-	echo $(SRCS_HAL)
 	@mkdir -p $(@D)
 	cpp $(CFLAGS) -E include/hal/platform.h | grep "^[^#]" > $(DIR_OBJ)/src/hal/platform.h.i
 	$(AR) rcs $(TARGET_HAL) $(OBJS_HAL)
@@ -160,6 +149,10 @@ $(TARGET_PROTO): $(OBJS_PROTO)
 $(TARGET_LIB): $(TARGET_HAL) $(TARGET_PROTO) $(OBJS_LIB)
 	@mkdir -p $(@D)
 	$(AR) rcs $(TARGET_LIB) $(OBJS_HAL) $(OBJS_PROTO) $(OBJS_LIB)
+
+$(TARGET_READER): $(TARGET_LIB) $(OBJS_READER)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET_READER) $(OBJS_READER) -L$(DIR_OBJ) -l:libknp.$(BOARD).a
 
 $(TARGET_FW): $(TARGET_LIB) $(OBJS_FW)
 	@mkdir -p $(@D)
@@ -176,12 +169,35 @@ build:
 	@mkdir -p $(DIR_OBJ)
 	@mkdir -p $(DIR_PY)
 
+compiledb:
+	@$(shell compiledb -n make lib)
+
+all: build hal proto lib fw py host
+
+hal: build $(TARGET_HAL)
+
+proto: build $(TARGET_PROTO)
+
+lib: build $(TARGET_LIB)
+
+fw: build $(TARGET_FW)
+
+reader: build
+	@make BOARD=hostlinux $(DIR_APP)/reader.hostlinux.bin
+
 py:
 	@make BOARD=hostlinux $(DIR_OBJ)/libknp.hostlinux.a
 	@python Makefile.py
 
-compiledb:
-	@$(shell compiledb -n make lib)
+host: build
+	@make BOARD=hostlinux $(DIR_OBJ)/libknp.hostlinux.a
+
+generic328p:
+	@make BOARD=generic328p all
+generic328p_fw:
+	@make BOARD=generic328p fw
+generic328p_py:
+	@make BOARD=generic328p py
 
 debug: CFLAGS += -pedantic-errors -Wall -Werror -Wextra -DDEBUG -g
 debug: all

@@ -23,7 +23,7 @@ uint8_t encodedSize = 0;
 
 // tasks handling
 task_t *tasks = NULL;
-task_t *running = NULL;
+task_t *sched_running = NULL;
 
 void init(char *name, char *ver) {
 	if (name) strcpy(fwname, name);
@@ -50,6 +50,14 @@ void remoteLog(const char *format, ...) {
 	int len = vsprintf(buffer,format, args);
 	cmdSysexStringData(len,buffer);
 	va_end (args);
+}
+
+void getEvent(void) {
+	while(binConsole->available(binConsole)) {
+		binConsole->read(binConsole, &binData, 1, 1);
+		printf("%x\n", binData);
+		if (decodeEvent(&binData, 0, NULL)) break;
+	}
 }
 
 void runEvent(uint8_t size, uint8_t *event) {
@@ -281,6 +289,49 @@ void runEvent(uint8_t size, uint8_t *event) {
 	}
 }
 
+void runEventSched(uint16_t now) {
+	if (tasks) {
+		task_t *current = tasks;
+		task_t *previous = NULL;
+		while (current) {
+			if (current->ms > 0 && current->ms < now) { // TODO handle overflow
+				uint16_t start = current->ms;
+				uint8_t pos = current->pos;
+				uint8_t len = current->len;
+				uint8_t *messages = current->messages;
+				uint8_t reschedule = 0;
+				sched_running = current;
+				while (pos < len) {
+					if (decodeEvent(&messages[pos++], 0, NULL))
+						runEvent(eventSize, eventBuffer);
+					if (start != current->ms) { // return true if task got rescheduled during run.
+						current->pos = ( pos == len ? 0 : pos ); // last message executed? -> start over next time
+						reschedule = 1;
+						break;
+					}
+				}
+				sched_running = NULL;
+				if (reschedule) {
+					previous = current;
+					current = current->next;
+				} else {
+					if (previous) {
+						previous->next = current->next;
+						free(current);
+						current = previous->next;
+					} else {
+						tasks = current->next;
+						free(current);
+						current = tasks;
+					}
+				}
+			} else {
+				current = current->next;
+			}
+		}
+	}
+}
+
 void printEvent(uint8_t size, uint8_t *event, char *output) {
 	if (event == NULL) {
 		size = eventSize;
@@ -344,63 +395,11 @@ void printEvent(uint8_t size, uint8_t *event, char *output) {
 	}
 }
 
-void newEvent(void) {
-	while(binConsole->available(binConsole)) {
-		binConsole->read(binConsole, &binData, 1, 1);
-		if (decodeEvent(&binData, 0, NULL)) {
-			runEvent(0, NULL);
-			break;
-		}
-	}
-}
-
-void schedEvent(uint16_t now) {
-	if (tasks) {
-		task_t *current = tasks;
-		task_t *previous = NULL;
-		while (current) {
-			if (current->ms > 0 && current->ms < now) { // TODO handle overflow
-				uint16_t start = current->ms;
-				uint8_t pos = current->pos;
-				uint8_t len = current->len;
-				uint8_t *messages = current->messages;
-				uint8_t reschedule = 0;
-				running = current;
-				while (pos < len) {
-					if (decodeEvent(&messages[pos++], 0, NULL))
-						runEvent(eventSize, eventBuffer);
-					if (start != current->ms) { // return true if task got rescheduled during run.
-						current->pos = ( pos == len ? 0 : pos ); // last message executed? -> start over next time
-						reschedule = 1;
-						break;
-					}
-				}
-				running = NULL;
-				if (reschedule) {
-					previous = current;
-					current = current->next;
-				} else {
-					if (previous) {
-						previous->next = current->next;
-						free(current);
-						current = previous->next;
-					} else {
-						tasks = current->next;
-						free(current);
-						current = tasks;
-					}
-				}
-			} else {
-				current = current->next;
-			}
-		}
-	}
-}
-
-void run(void) {
+uint8_t run(void) {
 	// --- start
 	ustart = micros();
 	mstart = millis();
+	int reset = 0;
 
 	// --- evaluate performance and signal lag
 	if (jitter>=TICKTIME) {
@@ -409,7 +408,7 @@ void run(void) {
 		jitter = jitter%1000;
 	}
 	if(sstart!=seconds()) {
-		printf("%4d:%4d:%4d - delta %4d (+%4d)\n",sstart,mstart,ustart,deltaTime,jitter);
+		//printf("%4d:%4d:%4d - delta %4d (+%4d)\n",sstart,mstart,ustart,deltaTime,jitter);
 		sstart = seconds();
 	}
 
@@ -417,29 +416,35 @@ void run(void) {
 	halRun();
 
 	// 2. get new event
-	newEvent();
+	getEvent();
 
-	// 3. run scheduled events
-	schedEvent(mstart);
+	// 3. run new event
+	//runEvent(0, NULL);
+
+	// 4. run scheduled events
+	runEventSched(mstart);
 
 	// --- evaluate spare time
 	deltaTime = uelapsed(mstart, ustart, micros(), millis());
 	if (deltaTime >= TICKTIME) {
 		jitter = jitter+(deltaTime-TICKTIME);
-		return;
+		return reset;
 	}
 
 	// --- spend spare time waiting for new events
 	while(deltaTime<TICKTIME) {
 		// wait for new incoming event
-		newEvent();
+		getEvent();
+		//runEvent(0, NULL);
 		// evaluate elapsed time
 		usleep(1); // in case cpu is too fast, mutex in micros/millis can't recover in time
 		deltaTime = uelapsed(mstart, ustart, micros(), millis());
 	}
 	// evaluate jitter
 	jitter = jitter+(deltaTime-TICKTIME);
+	return reset;
 }
+
 
 //
 // commands to trigger events on the other side of the connection
@@ -864,11 +869,11 @@ void eventSysexSchedSchedule(uint8_t id, uint16_t delay) {
 }
 
 void eventSysexSchedDelay(uint16_t delay_ms) {
-	if (running) {
+	if (sched_running) {
 		long now = millis();
-		running->ms += delay_ms;
-		if (running->ms < now) { // if delay time allready passed by schedule to 'now'.
-			running->ms = now;
+		sched_running->ms += delay_ms;
+		if (sched_running->ms < now) { // if delay time allready passed by schedule to 'now'.
+			sched_running->ms = now;
 		}
 	}
 }
