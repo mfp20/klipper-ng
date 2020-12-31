@@ -100,13 +100,13 @@ int initFdThread(void) {
 	return 0;
 }
 
-int fdCreateFile(const char *fname, uint8_t type) {
+int fdCreateFile(const char *fname) {
 	FILE *fp = fopen(fname, "ab+");
 	fclose(fp);
 	return 0;
 }
 
-int fdCreatePty(const char *fname, uint8_t type) {
+int fdCreatePty(const char *fname) {
 	// init termios
 	struct termios ti;
 	memset(&ti, 0, sizeof(ti));
@@ -131,7 +131,7 @@ int fdCreatePty(const char *fname, uint8_t type) {
 	return mfd;
 }
 
-int fdCreateSocket(const char *name, uint8_t type) {
+int fdCreateSocket(const char *fname) {
 	// TODO create
 	return 0;
 }
@@ -140,10 +140,7 @@ int fdOpen(const char *fname, uint8_t type) {
 	int newfd = 0;
 	// create
 	if (access(fname, F_OK) < 0) {
-		if (type == FD_TYPE_FILE) fdCreateFile(fname, type);
-		else if (type == FD_TYPE_PTY) newfd = fdCreatePty(fname, type);
-		else if (type == FD_TYPE_SOCKET) fdCreateSocket(fname, type);
-		else return -1;
+		return -1;
 	}
 	// open
 	pthread_mutex_lock(&fds_lock);

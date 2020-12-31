@@ -85,6 +85,7 @@ SRCS_PROTO	:= src/protocol.c
 SRCS_PRINTER	:=
 SRCS_LIB	:= src/libknp.c
 SRCS_READER	:= src/reader.c
+SRCS_WRITER	:= src/writer.c
 SRCS_FW		:= src/firmware.$(BOARD).c
 SRCS_HOST	:= $(wildcard src/host/chelper/*.c)
 
@@ -94,6 +95,7 @@ OBJS_PROTO	:= $(SRCS_PROTO:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_PRINTER	:= $(SRCS_PRINTER:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_LIB	:= $(SRCS_LIB:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_READER	:= $(SRCS_READER:%.c=$(DIR_OBJ)/%.$(BOARD).o)
+OBJS_WRITER	:= $(SRCS_WRITER:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_FW		:= $(SRCS_FW:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 OBJS_HOST	:= $(SRCS_HOST:%.c=$(DIR_OBJ)/%.$(BOARD).o)
 
@@ -114,6 +116,7 @@ TARGET_HAL	:= $(DIR_OBJ)/libhal.$(BOARD).a
 TARGET_PROTO	:= $(DIR_OBJ)/libproto.$(BOARD).a
 TARGET_LIB	:= $(DIR_OBJ)/libknp.$(BOARD).a
 TARGET_READER	:= $(DIR_APP)/reader.$(BOARD).bin
+TARGET_WRITER	:= $(DIR_APP)/writer.$(BOARD).bin
 TARGET_FW	:= $(DIR_APP)/klipper-ng.$(BOARD).bin
 TARGET_HOST	:= $(DIR_APP)/klippy-ng.elf
 
@@ -154,6 +157,10 @@ $(TARGET_READER): $(TARGET_LIB) $(OBJS_READER)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET_READER) $(OBJS_READER) -L$(DIR_OBJ) -l:libknp.$(BOARD).a
 
+$(TARGET_WRITER): $(TARGET_LIB) $(OBJS_WRITER)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET_WRITER) $(OBJS_WRITER) -L$(DIR_OBJ) -l:libknp.$(BOARD).a
+
 $(TARGET_FW): $(TARGET_LIB) $(OBJS_FW)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET_FW) $(OBJS_FW) -L$(DIR_OBJ) -l:libknp.$(BOARD).a
@@ -184,6 +191,9 @@ fw: build $(TARGET_FW)
 
 reader: build
 	@make BOARD=hostlinux $(DIR_APP)/reader.hostlinux.bin
+
+writer: build
+	@make BOARD=hostlinux $(DIR_APP)/writer.hostlinux.bin
 
 py:
 	@make BOARD=hostlinux $(DIR_OBJ)/libknp.hostlinux.a

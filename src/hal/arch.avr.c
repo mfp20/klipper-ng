@@ -258,6 +258,9 @@ volatile pin_frame_t* pin_pulse_multi(uint16_t milli) {
 // - 38400, error < 0.5%
 // - 76800, error < 0.5%
 // - 250000, error free
+// - 500000, error free
+// - 1000000, error free
+// - 2000000, error free
 void uart0_enable(uint32_t baud) {
 	// defaults to 250000bps
 	uint32_t baudrate = 3;
@@ -269,7 +272,7 @@ void uart0_enable(uint32_t baud) {
 	UBRR0H = (baudrate>>8);
 	// clear the USART status register
 	UCSR0A = 0x00;
-	// enable rx, tx and rx interrupt
+	// enable rx, tx and rx-complete interrupt
 	UCSR0B = (1<<RXEN0)|(1<<TXEN0)|(1<<RXCIE0);
 	// async-mode
 	UCSR0C = (1<<URSEL)|(1<<UCSZ01)|(1<<UCSZ00);
@@ -311,6 +314,7 @@ void uart0_disable(void) {
 	UCSR0B = (0<<RXEN0)|(0<<TXEN0)|(0<<RXCIE0);
 }
 
+// rx action
 ISR(USART0_RX_vect) {
 	unsigned char data;
 	unsigned char tmphead;
@@ -403,13 +407,16 @@ void arch_init() {
 	sei();
 }
 
-// Timer2: pulse generator, TOP and MATCH
+// Timer2: pulse generator
+// example: COMPA = 64, COMPB = 32
+// Pins are LOW. The counter starts counting from 0; at 32 it matches COMPB, selected pins become HIGH.
+// The counter keeps counting from 33; at 64 it maches COMPA, triggers OVF and restart from 0. OVF set selected pins to LOW.
+// Pins are LOW from 0 to 32, HIGH from 33 to 64. Then low again.
 ISR(TIMER2_COMPA_vect) {
-	// TOP
+	// TOP: once reached, counter goes back to bottom
 }
 ISR(TIMER2_COMPB_vect) {
-	// TODO check cycles < 32 (ie: t < 2us)
-	// set pins to high
+	// MATCH: once reached, set pins to high; ie: set match < top, to enable a pulse between match and top
 	pin_write(pin_pulsing.pin[0], BIT_GET(pin_pulsing.head->pulse[pin_pulsing.counter], BIT(0)) );
 	pin_write(pin_pulsing.pin[1], BIT_GET(pin_pulsing.head->pulse[pin_pulsing.counter], BIT(1)) );
 	pin_write(pin_pulsing.pin[2], BIT_GET(pin_pulsing.head->pulse[pin_pulsing.counter], BIT(2)) );
@@ -420,8 +427,7 @@ ISR(TIMER2_COMPB_vect) {
 	pin_write(pin_pulsing.pin[7], BIT_GET(pin_pulsing.head->pulse[pin_pulsing.counter], BIT(7)) );
 }
 ISR(TIMER2_OVF_vect) {
-	// TODO check cycles < 32 (ie: t < 2us)
-	// set pins to low
+	// overflow: every time counter reaches TOP, set pins to low
 	pin_write(pin_pulsing.pin[0], 0);
 	pin_write(pin_pulsing.pin[1], 0);
 	pin_write(pin_pulsing.pin[2], 0);

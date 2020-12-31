@@ -33,6 +33,9 @@ extern fptr_alarm_t rBufferFullHandler;
 extern fptr_alarm_t wBufferFullHandler;
 
 int initFdThread(void);
+int fdCreateFile(const char *fname);
+int fdCreatePty(const char *fname);
+int fdCreateSocket(const char *fname);
 int fdOpen(const char *fname, uint8_t type);
 int fdGet(int fdid);
 int fdAvailable(int fdid);

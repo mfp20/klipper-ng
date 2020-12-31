@@ -5,19 +5,19 @@
 #error "Please add __GITREVPARSE__ define to your compiler command line."
 #endif
 
-#include <libknp.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>		// usleep
 #include <signal.h>
+#include <libknp.h>
 
 volatile sig_atomic_t running = 1;
 volatile sig_atomic_t reset = 0;
 
 void sigint(int sig){
 	stdoutPrint("- SIGINT received. Halting...\n");
-	reset = 1;
 	running = 0;
+	reset = 1;
 }
 
 int main(int argc, const char *argv[]) {
@@ -31,7 +31,7 @@ int main(int argc, const char *argv[]) {
 	// intercept SIGINT
 	signal(SIGINT, sigint);
 
-	while((!reset)&&running) {
+	while(running) {
 		// init libknp
 		init(NULL, NULL);
 		printf("- Boot OK. Running...\n");
