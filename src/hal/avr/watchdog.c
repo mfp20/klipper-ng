@@ -12,15 +12,12 @@
 
 static uint8_t watchdog_shutdown;
 
-ISR(WDT_vect)
-{
+ISR(WDT_vect) {
     watchdog_shutdown = 1;
     sched_shutdown(ERROR_WATCHDOG_EXPIRE);
 }
 
-void
-watchdog_reset(void)
-{
+void task_watchdog(void) {
     wdt_reset();
     if (watchdog_shutdown) {
         WDTCSR = 1<<WDIE;
@@ -28,28 +25,23 @@ watchdog_reset(void)
     }
 }
 
-void
-watchdog_init(void)
-{
+void task_init_watchdog(void) {
     // 0.5s timeout, interrupt and system reset
     wdt_enable(WDTO_500MS);
     WDTCSR = 1<<WDIE;
 }
 
 // Very early reset of the watchdog
-void __attribute__((naked)) __visible __section(".init3")
-watchdog_early_init(void)
-{
+void __attribute__((naked)) __visible __section(".init3") watchdog_early_init(void) {
     MCUSR = 0;
     wdt_disable();
 }
 
 // Support reset on AVR via the watchdog timer
-void
-command_reset(uint32_t *args)
-{
+void command_reset(uint32_t *args) {
     irq_disable();
     wdt_enable(WDTO_15MS);
     for (;;)
         ;
 }
+

@@ -6,9 +6,10 @@
 
 #include "macro_compiler.h"
 
-#include "autoconf.h" // CONFIG_MACH_atmega644p
+#include "autoconf.avr.h" // CONFIG_MACH_atmega644p
 #include "cmd.h" // shutdown
-#include "gpio.h" // gpio_adc_read
+//#include "gpio.h" // gpio_adc_read
+#include "adc.h" // gpio_adc_read
 #include "internal.h" // GPIO
 #include "pgm.h" // PROGMEM
 #include "sched.h" // sched_shutdown
@@ -43,9 +44,7 @@ enum { ADMUX_DEFAULT = 0x40 };
 enum { ADC_ENABLE = (1<<ADPS0)|(1<<ADPS1)|(1<<ADPS2)|(1<<ADEN)|(1<<ADIF) };
 
 
-struct gpio_adc
-gpio_adc_setup(uint8_t pin)
-{
+struct gpio_adc gpio_adc_setup(uint8_t pin) {
     // Find pin in adc_pins table
     uint8_t chan;
     for (chan=0; ; chan++) {
@@ -75,9 +74,7 @@ static uint8_t last_analog_read = ADC_DUMMY;
 // Try to sample a value. Returns zero if sample ready, otherwise
 // returns the number of clock ticks the caller should wait before
 // retrying this function.
-uint32_t
-gpio_adc_sample(struct gpio_adc g)
-{
+uint32_t gpio_adc_sample(struct gpio_adc g) {
     if (ADCSRA & (1<<ADSC))
         // Busy
         goto need_delay;
@@ -106,17 +103,14 @@ need_delay:
 }
 
 // Read a value; use only after gpio_adc_sample() returns zero
-uint16_t
-gpio_adc_read(struct gpio_adc g)
-{
+uint16_t gpio_adc_read(struct gpio_adc g) {
     last_analog_read = ADC_DUMMY;
     return ADC;
 }
 
 // Cancel a sample that may have been started with gpio_adc_sample()
-void
-gpio_adc_cancel_sample(struct gpio_adc g)
-{
+void gpio_adc_cancel_sample(struct gpio_adc g) {
     if (last_analog_read == g.chan)
         last_analog_read = ADC_DUMMY;
 }
+

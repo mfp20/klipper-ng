@@ -6,13 +6,13 @@
 
 #include <fcntl.h> // open
 #include <unistd.h> // write
-#include "internal.h" // report_errno
+
+#include "console.h" // report_errno
+#include "sched.h" // DECL_TASK
 
 static int watchdog_fd = -1;
 
-int
-watchdog_setup(void)
-{
+int watchdog_setup(void) {
     int ret = open("/dev/watchdog", O_RDWR|O_CLOEXEC);
     if (ret < 0) {
         report_errno("watchdog open", ret);
@@ -22,9 +22,7 @@ watchdog_setup(void)
     return set_non_blocking(watchdog_fd);
 }
 
-void
-watchdog_task(void)
-{
+void task_watchdog(void) {
     static struct timespec next_watchdog_time;
     if (watchdog_fd < 0 || !timer_check_periodic(&next_watchdog_time))
         return;
@@ -32,3 +30,4 @@ watchdog_task(void)
     if (ret <= 0)
         report_errno("watchdog write", ret);
 }
+

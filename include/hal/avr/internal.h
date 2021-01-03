@@ -16,3 +16,4 @@ extern volatile uint8_t * const digital_regs[];
     ((struct gpio_digital_regs*)READP(digital_regs[GPIO2PORT(pin)]))
 
 #endif // internal.h
+

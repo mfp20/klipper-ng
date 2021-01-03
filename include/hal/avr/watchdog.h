@@ -1,10 +1,10 @@
-#ifndef __WATCHDOG_H
-#define __WATCHDOG_H
+#ifndef __AVR_WATCHDOG_H
+#define __AVR_WATCHDOG_H
 
 #include <stdint.h> // uint32_t
 
-void watchdog_init(void);
-void watchdog_reset(void);
+void task_init_watchdog(void);
+void task_watchdog(void);
 
 void command_reset(uint32_t*);
 

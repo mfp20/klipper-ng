@@ -36,3 +36,4 @@ static inline void irq_poll(void) {
 }
 
 #endif // irq.h
+

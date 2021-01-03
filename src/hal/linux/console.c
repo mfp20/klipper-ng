@@ -14,10 +14,12 @@
 #include <sys/timerfd.h> // timerfd_create
 #include <time.h> // struct timespec
 #include <unistd.h> // ttyname
-#include "irq.h" // irq_poll
-#include "avr.h" // console_sendf
-#include "cmd.h" // command_find_block
-#include "internal.h" // console_setup
+
+#include "rxtx_irq.h"
+#include "generic_irq.h" // irq_poll
+//#include "board/misc.h" // console_sendf
+//#include "command.h" // command_find_block
+#include "console.h" // console_setup
 #include "sched.h" // sched_wake_task
 
 static struct pollfd main_pfd[2];
@@ -25,9 +27,7 @@ static struct pollfd main_pfd[2];
 #define MP_TTY_IDX   1
 
 // Report 'errno' in a message written to stderr
-void
-report_errno(char *where, int rc)
-{
+void report_errno(char *where, int rc) {
     int e = errno;
     fprintf(stderr, "Got error %d in %s: (%d)%s\n", rc, where, e, strerror(e));
 }
@@ -37,9 +37,7 @@ report_errno(char *where, int rc)
  * Setup
  ****************************************************************/
 
-int
-set_non_blocking(int fd)
-{
+int set_non_blocking(int fd) {
     int flags = fcntl(fd, F_GETFL);
     if (flags < 0) {
         report_errno("fcntl getfl", flags);
@@ -53,9 +51,7 @@ set_non_blocking(int fd)
     return 0;
 }
 
-static int
-set_close_on_exec(int fd)
-{
+static int set_close_on_exec(int fd) {
     int ret = fcntl(fd, F_SETFD, FD_CLOEXEC);
     if (ret < 0) {
         report_errno("fcntl set cloexec", ret);
@@ -64,9 +60,7 @@ set_close_on_exec(int fd)
     return 0;
 }
 
-int
-console_setup(char *name)
-{
+int console_setup(char *name) {
     // Open pseudo-tty
     struct termios ti;
     memset(&ti, 0, sizeof(ti));
@@ -131,10 +125,11 @@ static struct task_wake console_wake;
 static uint8_t receive_buf[4096];
 static int receive_pos;
 
+void tx_buffer_enable_irq(void) {
+}
+
 // Process any incoming commands
-void
-console_task(void)
-{
+void task_console_rx(void) {
     if (!sched_check_wake(&console_wake))
         return;
 
@@ -151,12 +146,12 @@ console_task(void)
     }
     if (ret == 15 && receive_buf[receive_pos+14] == '\n'
         && memcmp(&receive_buf[receive_pos], "FORCE_SHUTDOWN\n", 15) == 0)
-        sched_shutdown("Force shutdown command");
+        sched_shutdown(ERROR_FORCE_SHUTDOWN);
 
     // Find and dispatch message blocks in the input
     int len = receive_pos + ret;
-    uint_fast8_t pop_count, msglen = len > MESSAGE_MAX ? MESSAGE_MAX : len;
-    ret = command_find_and_dispatch(receive_buf, msglen, &pop_count);
+    uint_fast8_t pop_count, msglen = len > MSG_MAX ? MSG_MAX : len;
+    ret = rx_find_and_run(receive_buf, msglen, &pop_count);
     if (ret) {
         len -= pop_count;
         if (len) {
@@ -166,13 +161,11 @@ console_task(void)
     }
     receive_pos = len;
 }
-
+/*
 // Encode and transmit a "response" message
-void
-console_sendf(const struct command_encoder *ce, va_list args)
-{
+void console_sendf(const struct command_encoder *ce, va_list args) {
     // Generate message
-    uint8_t buf[MESSAGE_MAX];
+    uint8_t buf[MSG_MAX];
     uint_fast8_t msglen = command_encode_and_frame(buf, ce, args);
 
     // Transmit message
@@ -180,11 +173,9 @@ console_sendf(const struct command_encoder *ce, va_list args)
     if (ret < 0)
         report_errno("write", ret);
 }
-
+*/
 // Sleep until the specified time (waking early for console input if needed)
-void
-console_sleep(struct timespec ts)
-{
+void console_sleep(struct timespec ts) {
     struct itimerspec its;
     its.it_interval = (struct timespec){0, 0};
     its.it_value = ts;
@@ -204,3 +195,4 @@ console_sleep(struct timespec ts)
     if (main_pfd[MP_TIMER_IDX].revents)
         irq_poll();
 }
+

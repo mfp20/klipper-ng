@@ -8,18 +8,15 @@
 #include <stdio.h> // snprintf
 #include <stdlib.h> // atoi
 #include <unistd.h> // read
-#include "cmd.h" // shutdown
-#include "gpio.h" // gpio_adc_setup
-#include "internal.h" // report_errno
+
+//#include "command.h" // shutdown
+#include "adc.h" // gpio_adc_setup
+#include "console.h" // report_errno
 #include "sched.h" // sched_shutdown
-
-
 
 #define IIO_PATH "/sys/bus/iio/devices/iio:device0/in_voltage%d_raw"
 
-struct gpio_adc
-gpio_adc_setup(uint8_t pin)
-{
+struct gpio_adc gpio_adc_setup(uint8_t pin) {
     char fname[256];
     snprintf(fname, sizeof(fname), IIO_PATH, pin);
 
@@ -38,15 +35,11 @@ fail:
     sched_shutdown("Unable to open adc device");
 }
 
-uint32_t
-gpio_adc_sample(struct gpio_adc g)
-{
+uint32_t gpio_adc_sample(struct gpio_adc g) {
     return 0;
 }
 
-uint16_t
-gpio_adc_read(struct gpio_adc g)
-{
+uint16_t gpio_adc_read(struct gpio_adc g) {
     char buf[64];
     int ret = pread(g.fd, buf, sizeof(buf)-1, 0);
     if (ret <= 0) {
@@ -58,7 +51,6 @@ gpio_adc_read(struct gpio_adc g)
     return atoi(buf);
 }
 
-void
-gpio_adc_cancel_sample(struct gpio_adc g)
-{
+void gpio_adc_cancel_sample(struct gpio_adc g) {
 }
+

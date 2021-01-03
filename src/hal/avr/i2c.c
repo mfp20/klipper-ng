@@ -6,15 +6,10 @@
 
 #include <avr/io.h> // TWCR
 
-#include "autoconf.h" // CONFIG_CLOCK_FREQ
-#include "cmd.h" // shutdown
+#include "i2c.h" // i2c_setup
+
+#include "platform.h"
 #include "sched.h" // sched_shutdown
-
-#include "avr.h" // timer_is_before
-#include "gpio.h" // i2c_setup
-#include "internal.h" // GPIO
-#include "timer.h" //
-
 
 #if CONFIG_MACH_atmega168 || CONFIG_MACH_atmega328 || CONFIG_MACH_atmega328p
 static const uint8_t SCL = GPIO('C', 5), SDA = GPIO('C', 4);
@@ -26,9 +21,7 @@ static const uint8_t SCL = GPIO('C', 0), SDA = GPIO('C', 1);
 static const uint8_t SCL = GPIO('D', 0), SDA = GPIO('D', 1);
 #endif
 
-static void
-i2c_init(void)
-{
+static void i2c_init(void) {
     if (TWCR & (1<<TWEN))
         // Already setup
         return;
@@ -45,18 +38,14 @@ i2c_init(void)
     TWCR = (1<<TWEN);
 }
 
-struct i2c_config
-i2c_setup(uint32_t bus, uint32_t rate, uint8_t addr)
-{
+struct i2c_config i2c_setup(uint32_t bus, uint32_t rate, uint8_t addr) {
     if (bus)
         sched_shutdown(ERROR_I2C_BUS_INVALID);
     i2c_init();
     return (struct i2c_config){ .addr=addr<<1 };
 }
 
-static void
-i2c_wait(uint32_t timeout)
-{
+static void i2c_wait(uint32_t timeout) {
     for (;;) {
         if (TWCR & (1<<TWINT))
             break;
@@ -65,9 +54,7 @@ i2c_wait(uint32_t timeout)
     }
 }
 
-static void
-i2c_start(uint32_t timeout)
-{
+static void i2c_start(uint32_t timeout) {
     TWCR = (1<<TWEN) | (1<<TWINT) | (1<<TWSTA);
     i2c_wait(timeout);
     uint32_t status = TWSR;
@@ -75,31 +62,23 @@ i2c_start(uint32_t timeout)
         sched_shutdown(ERROR_I2C_START_FAIL);
 }
 
-static void
-i2c_send_byte(uint8_t b, uint32_t timeout)
-{
+static void i2c_send_byte(uint8_t b, uint32_t timeout) {
     TWDR = b;
     TWCR = (1<<TWEN) | (1<<TWINT);
     i2c_wait(timeout);
 }
 
-static void
-i2c_receive_byte(uint8_t *read, uint32_t timeout, uint8_t send_ack)
-{
+static void i2c_receive_byte(uint8_t *read, uint32_t timeout, uint8_t send_ack) {
     TWCR = (1<<TWEN) | (1<<TWINT) | ((send_ack?1:0)<<TWEA);
     i2c_wait(timeout);
     *read = TWDR;
 }
 
-static void
-i2c_stop(uint32_t timeout)
-{
+static void i2c_stop(uint32_t timeout) {
     TWCR = (1<<TWEN) | (1<<TWINT) | (1<<TWSTO);
 }
 
-void
-i2c_write(struct i2c_config config, uint8_t write_len, uint8_t *write)
-{
+void i2c_write(struct i2c_config config, uint8_t write_len, uint8_t *write) {
     uint32_t timeout = timer_read_time() + timer_from_us(5000);
 
     i2c_start(timeout);
@@ -109,10 +88,7 @@ i2c_write(struct i2c_config config, uint8_t write_len, uint8_t *write)
     i2c_stop(timeout);
 }
 
-void
-i2c_read(struct i2c_config config, uint8_t reg_len, uint8_t *reg
-         , uint8_t read_len, uint8_t *read)
-{
+void i2c_read(struct i2c_config config, uint8_t reg_len, uint8_t *reg, uint8_t read_len, uint8_t *read) {
     uint32_t timeout = timer_read_time() + timer_from_us(5000);
     i2c_start(timeout);
     i2c_send_byte(config.addr, timeout);
@@ -124,3 +100,4 @@ i2c_read(struct i2c_config config, uint8_t reg_len, uint8_t *reg
         i2c_receive_byte(read++, timeout, read_len);
     i2c_stop(timeout);
 }
+

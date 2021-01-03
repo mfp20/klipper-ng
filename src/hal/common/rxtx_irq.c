@@ -8,14 +8,10 @@
 
 #include "rxtx_irq.h"
 
-#include "autoconf.h" // CONFIG_SERIAL_BAUD
+#include "cmd.h" // misc defines
 #include "sched.h" // sched_wake_tasks
-#include "common_io.h" // readb
-#include "cmd.h" //
-#include "avr.h" // console_sendf
+#include "generic_io.h" // readb/writeb
 
-#include "irq.h" // irq_save
-#include "pgm.h" // READP
 
 uint8_t receive_buf[MSG_RX_BUFFER_SIZE], receive_pos;
 uint8_t transmit_buf[MSG_TX_BUFFER_SIZE], transmit_pos, transmit_max;
@@ -36,7 +32,7 @@ void rx_buffer_add(uint_fast8_t data) {
     receive_buf[receive_pos++] = data;
 }
 
-// remove from the receive buffer the given number of bytes
+// remove from the beginning of receive buffer the given number of bytes
 void rx_buffer_clean(uint_fast8_t len) {
     uint_fast8_t copied = 0;
     for (;;) {
@@ -262,10 +258,6 @@ void tx_buffer_trigger(uint8_t *buf, uint8_t len) {
     writeb(&in_tx, 0);
 }
 
-void tx_end(void) {
-    writeb(&in_tx, 0); // guard off
-}
-
 // get next byte to transmit
 int tx_buffer_next(uint8_t *pdata) {
 	if (transmit_pos >= transmit_max)
@@ -274,4 +266,7 @@ int tx_buffer_next(uint8_t *pdata) {
 	return 0;
 }
 
+void task_end_tx(void) {
+    writeb(&in_tx, 0); // guard off
+}
 

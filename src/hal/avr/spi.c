@@ -4,12 +4,15 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "autoconf.h" // CONFIG_MACH_atmega644p
+#include "autoconf.avr.h" // CONFIG_MACH_atmega644p
+
 #include "cmd.h" // shutdown
-#include "gpio.h" // spi_setup
-#include "internal.h" // GPIO
-#include "pgm.h" // READP
 #include "sched.h" // sched_shutdown
+
+#include "internal.h" // GPIO
+#include "gpio.h" // gpio_out_setup
+#include "pgm.h" // READP
+#include "spi.h" // spi_setup
 
 
 #if CONFIG_MACH_atmega168 || CONFIG_MACH_atmega328 || CONFIG_MACH_atmega328p
@@ -25,9 +28,7 @@ static const uint8_t MISO = GPIO('B', 3), MOSI = GPIO('B', 2);
 static const uint8_t SCK = GPIO('B', 1), SS = GPIO('B', 0);
 #endif
 
-static void
-spi_init(void)
-{
+static void spi_init(void) {
     if (!(GPIO2REGS(SS)->mode & GPIO2BIT(SS)))
         // The SS pin must be an output pin (but is otherwise unused)
         gpio_out_setup(SS, 0);
@@ -39,9 +40,7 @@ spi_init(void)
     SPSR = 0;
 }
 
-struct spi_config
-spi_setup(uint32_t bus, uint8_t mode, uint32_t rate)
-{
+struct spi_config spi_hw_setup(uint32_t bus, uint8_t mode, uint32_t rate) {
     if (bus)
         sched_shutdown(ERROR_SPI_SETUP_INVALID);
 
@@ -74,17 +73,12 @@ spi_setup(uint32_t bus, uint8_t mode, uint32_t rate)
     return config;
 }
 
-void
-spi_prepare(struct spi_config config)
-{
+void spi_hw_prepare(struct spi_config config) {
     SPCR = config.spcr;
     SPSR = config.spsr;
 }
 
-void
-spi_transfer(struct spi_config config, uint8_t receive_data
-             , uint8_t len, uint8_t *data)
-{
+void spi_hw_transfer(struct spi_config config, uint8_t receive_data, uint8_t len, uint8_t *data) {
     if (receive_data) {
         while (len--) {
             SPDR = *data;
@@ -100,3 +94,4 @@ spi_transfer(struct spi_config config, uint8_t receive_data
         }
     }
 }
+

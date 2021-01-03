@@ -4,27 +4,23 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "autoconf.h" // CONFIG_CLOCK_FREQ
+#include "autoconf.avr.h" // CONFIG_CLOCK_FREQ
 #include "irq.h" // irq_disable
-#include "avr.h" // timer_from_us
+ // timer_from_us
 #include "common/timer_irq.h" // timer_dispatch_many
 #include "cmd.h" // shutdown
 #include "sched.h" // sched_timer_dispatch
 
 
 // Return the number of clock ticks for a given number of microseconds
-uint32_t
-timer_from_us(uint32_t us)
-{
+uint32_t timer_from_us(uint32_t us) {
     return us * (CONFIG_CLOCK_FREQ / 1000000);
 }
 
 // Return true if time1 is before time2.  Always use this function to
 // compare times as regular C comparisons can fail if the counter
 // rolls over.
-uint8_t
-timer_is_before(uint32_t time1, uint32_t time2)
-{
+uint8_t timer_is_before(uint32_t time1, uint32_t time2) {
     return (int32_t)(time1 - time2) < 0;
 }
 
@@ -36,9 +32,7 @@ static uint32_t timer_repeat_until;
 #define TIMER_DEFER_REPEAT_TICKS timer_from_us(5)
 
 // Invoke timers - called from board irq code.
-uint32_t
-timer_dispatch_many(void)
-{
+uint32_t timer_dispatch_many(void) {
     uint32_t tru = timer_repeat_until;
     for (;;) {
         // Run the next software timer
@@ -70,12 +64,11 @@ timer_dispatch_many(void)
 }
 
 // Make sure timer_repeat_until doesn't wrap 32bit comparisons
-void
-timer_task(void)
-{
+void timer_task(void) {
     uint32_t now = timer_read_time();
     irq_disable();
     if (timer_is_before(timer_repeat_until, now))
         timer_repeat_until = now;
     irq_enable();
 }
+

@@ -6,16 +6,9 @@
 
 #include <string.h> // memset
 
-//
 #include "cmds_base.h" // oid_lookup
-//
+
 #include "sched.h" // sched_clear_shutdown
-#include "cmd.h" // shutdown
-//
-#include "avr.h" // alloc_maxsize
-#include "irq.h" // irq_save
-#include "pgm.h" // READP
-#include "timer.h" //
 
 
 /****************************************************************
@@ -23,10 +16,6 @@
  ****************************************************************/
 
 static void *alloc_end;
-
-void alloc_init(void) {
-    alloc_end = (void*)ALIGN((size_t)dynmem_start(), __alignof__(void*));
-}
 
 // Allocate an area of memory
 void *alloc_chunk(size_t size) {
@@ -97,26 +86,12 @@ void move_request_size(int size) {
         move_item_size = size;
 }
 
-void move_reset(void) {
-    if (!move_count)
-        return;
-    // Add everything in move_list to the free list.
-    uint32_t i;
-    for (i=0; i<move_count-1; i++) {
-        struct move_freed *mf = move_list + i*move_item_size;
-        mf->next = move_list + (i + 1)*move_item_size;
-    }
-    struct move_freed *mf = move_list + (move_count - 1)*move_item_size;
-    mf->next = NULL;
-    move_free_list = move_list;
-}
-
 static void move_finalize(void) {
     if (is_finalized())
         sched_shutdown(ERROR_ALREADY_FINAL);
     move_request_size(sizeof(*move_free_list));
     move_list = alloc_chunks(move_item_size, 1024, &move_count);
-    move_reset();
+    task_end_move();
 }
 
 
@@ -159,29 +134,12 @@ void *oid_next(uint8_t *i, void *type) {
     }
 }
 
-void command_allocate_oids(uint32_t *args) {
-    if (oids)
-        sched_shutdown(ERROR_OIDS_ALREADY_ALLOC);
-    uint8_t count = args[0];
-    oids = alloc_chunk(sizeof(oids[0]) * count);
-    oid_count = count;
-}
-
 
 /****************************************************************
  * Config CRC
  ****************************************************************/
 
 static uint32_t config_crc;
-
-void command_get_config(uint32_t *args) {
-    send_response(TYPE_BASE_GET_CONFIG, is_finalized(), config_crc, move_count, sched_is_shutdown());
-}
-
-void command_finalize_config(uint32_t *args) {
-    move_finalize();
-    config_crc = args[0];
-}
 
 // Attempt a full manual reset of the config
 void config_reset(uint32_t *args) {
@@ -194,7 +152,7 @@ void config_reset(uint32_t *args) {
     move_free_list = NULL;
     move_list = NULL;
     move_count = move_item_size = 0;
-    alloc_init();
+    task_init_alloc();
     sched_timer_reset();
     sched_clear_shutdown();
     irq_enable();
@@ -205,19 +163,9 @@ void config_reset(uint32_t *args) {
  * Timing and load stats
  ****************************************************************/
 
-void command_get_clock(uint32_t *args) {
-    send_response(TYPE_BASE_GET_CLOCK, timer_read_time());
-}
+#define SUMSQ_BASE 256
 
 static uint32_t stats_send_time, stats_send_time_high;
-
-void command_get_uptime(uint32_t *args) {
-    uint32_t cur = timer_read_time();
-    uint32_t high = stats_send_time_high + (cur < stats_send_time);
-    send_response(TYPE_BASE_GET_UPTIME, high, cur);
-}
-
-#define SUMSQ_BASE 256
 
 void stats_update(uint32_t start, uint32_t cur) {
     static uint32_t count, sum, sumsq;
@@ -248,26 +196,95 @@ void stats_update(uint32_t start, uint32_t cur) {
 
 
 /****************************************************************
- * Misc commands
+ * tasks and commands
  ****************************************************************/
 
-void command_emergency_stop(uint32_t *args) {
+void task_unknown(void) {
+}
+
+void task_noop(void) {
+}
+
+void task_init_alloc(void) {
+    alloc_end = (void*)ALIGN((size_t)dynmem_start(), __alignof__(void*));
+}
+
+// move reset
+void task_end_move(void) {
+    if (!move_count)
+        return;
+    // Add everything in move_list to the free list.
+    uint32_t i;
+    for (i=0; i<move_count-1; i++) {
+        struct move_freed *mf = move_list + i*move_item_size;
+        mf->next = move_list + (i + 1)*move_item_size;
+    }
+    struct move_freed *mf = move_list + (move_count - 1)*move_item_size;
+    mf->next = NULL;
+    move_free_list = move_list;
+}
+
+uint8_t *command_unknown(uint8_t *start, uint8_t *end) {
+	// TODO error
+	return end;
+}
+
+uint8_t *command_noop(uint8_t *start, uint8_t *end) {
+	return ++start;
+}
+
+uint8_t *command_allocate_oids(uint8_t *start, uint8_t *end) {
+    if (oids)
+        sched_shutdown(ERROR_OIDS_ALREADY_ALLOC);
+    uint8_t count = *(++start);
+    oids = alloc_chunk(sizeof(oids[0]) * count);
+    oid_count = count;
+	return start;
+}
+
+uint8_t *command_get_config(uint8_t *start, uint8_t *end) {
+    send_response(TYPE_BASE_GET_CONFIG, is_finalized(), config_crc, move_count, sched_is_shutdown());
+	return ++start;
+}
+
+uint8_t *command_finalize_config(uint8_t *start, uint8_t *end) {
+    move_finalize();
+    config_crc = *(++start);
+	return start;
+}
+
+uint8_t *command_get_clock(uint8_t *start, uint8_t *end) {
+    send_response(TYPE_BASE_GET_CLOCK, timer_read_time());
+	return ++start;
+}
+
+uint8_t *command_get_uptime(uint8_t *start, uint8_t *end) {
+    uint32_t cur = timer_read_time();
+    uint32_t high = stats_send_time_high + (cur < stats_send_time);
+    send_response(TYPE_BASE_GET_UPTIME, high, cur);
+	return ++start;
+}
+
+uint8_t *command_emergency_stop(uint8_t *start, uint8_t *end) {
     sched_shutdown(ERROR_CMD_REQ);
+	return ++start;
 }
 
-void command_clear_shutdown(uint32_t *args) {
+uint8_t *command_clear_shutdown(uint8_t *start, uint8_t *end) {
     sched_clear_shutdown();
+	return ++start;
 }
 
-void command_identify(uint32_t *args) {
-/*
-    uint32_t offset = args[0];
-    uint8_t count = args[1];
-    uint32_t isize = READP(command_identify_size);
+uint8_t *command_identify(uint8_t *start, uint8_t *end) {
+	start++;
+    uint32_t offset = vlq_decode(&start);
+    uint8_t count = *start++;
+    uint32_t isize = TYPE_NO;
     if (offset >= isize)
         count = 0;
     else if (offset + count > isize)
         count = isize - offset;
-    send_response(TYPE_BASE_IDENTIFY, offset, count, &command_identify_data[offset]);
-*/
+    // TODO send_response(TYPE_BASE_IDENTIFY, offset, count, &command_identify_data[offset]);
+	return start;
 }
+

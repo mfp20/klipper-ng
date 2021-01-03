@@ -12,4 +12,5 @@ void irq_restore(irqstatus_t flag);
 void irq_wait(void);
 void irq_poll(void);
 
-#endif // irq.h
+#endif // generic_irq.h
+

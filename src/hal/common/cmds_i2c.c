@@ -4,20 +4,23 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "sched.h" //
-#include "cmd.h"  //sendf
-#include "cmds_base.h" // oid_alloc
+#include "cmds_i2c.h" //
 
-#include "gpio.h" //i2c_write/read/setup
+#include "sched.h" // send_response, sched_shutdown
+#include "cmds_base.h" // oid_alloc
 
 struct i2cdev_s {
     struct i2c_config i2c_config;
 };
 
+
+/****************************************************************
+ * tasks and commands
+ ****************************************************************/
+
 void command_config_i2c(uint32_t *args) {
     uint8_t addr = args[3] & 0x7f;
-    struct i2cdev_s *i2c = oid_alloc(args[0], command_config_i2c
-                                     , sizeof(*i2c));
+    struct i2cdev_s *i2c = oid_alloc(args[0], command_config_i2c, sizeof(*i2c));
     i2c->i2c_config = i2c_setup(args[1], args[2], addr);
 }
 

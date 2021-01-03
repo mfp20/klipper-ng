@@ -6,14 +6,9 @@
 
 #include <avr/interrupt.h> // TCNT1
 
-#include "timer.h" //
+#include "platform.h"
 
-#include "autoconf.h" // CONFIG_AVR_CLKPR
-#include "protocol.h" //
 #include "sched.h" // sched_timer_dispatch
-
-#include "avr.h" // timer_from_us
-#include "irq.h" // irq_save
 
 
 /****************************************************************
@@ -49,13 +44,13 @@ void timer_kick(void) {
     TIFR1 = 1<<OCF1A;
 }
 
-static struct timer wrap_timer;
+static struct timer_s wrap_timer;
 
-void timer_reset(void) {
+void task_end_timer(void) {
     sched_add_timer(&wrap_timer);
 }
 
-void timer_init(void) {
+void task_init_timer(void) {
     irqstatus_t flag = irq_save();
     // no outputs
     TCCR1A = 0;
@@ -65,7 +60,7 @@ void timer_init(void) {
     TCNT1 = 0;
     timer_kick();
     timer_repeat_set(timer_get() + 50);
-    timer_reset();
+    task_end_timer();
     TIFR1 = 1<<TOV1;
     // enable interrupt
     TIMSK1 = 1<<OCIE1A;
@@ -95,7 +90,7 @@ uint32_t timer_read_time(void) {
 }
 
 // Timer that runs every ~2ms - allows 16bit comparison optimizations
-static uint_fast8_t timer_event(struct timer *t) {
+static uint_fast8_t timer_event(struct timer_s *t) {
     union u32_u *nextwake = (void*)&wrap_timer.waketime;
     if (TIFR1 & (1<<TOV1)) {
         // Hardware timer has overflowed - update overflow counter
@@ -108,7 +103,7 @@ static uint_fast8_t timer_event(struct timer *t) {
     return SF_RESCHEDULE;
 }
 
-static struct timer wrap_timer = {
+static struct timer_s wrap_timer = {
     .func = timer_event,
     .waketime = 0x8000,
 };
@@ -168,3 +163,4 @@ ISR(TIMER1_COMPA_vect) {
 done:
     timer_set(next);
 }
+

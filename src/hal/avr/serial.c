@@ -8,7 +8,7 @@
 
 #include "macro_compiler.h"
 
-#include "autoconf.h" // CONFIG_SERIAL_BAUD
+#include "autoconf.avr.h" // CONFIG_SERIAL_BAUD
 #include "rxtx_irq.h" // rx_buffer_add
 #include "sched.h" //
 #include "cmd.h" //
@@ -50,7 +50,7 @@
 #define USARTx_UDRE_vect AVR_SERIAL_REG(USART, CONFIG_SERIAL_PORT, _UDRE_vect)
 #endif
 
-void serial_init(void) {
+void task_init_serial(void) {
     UCSRxA = CONFIG_SERIAL_BAUD_U2X ? (1<<U2Xx) : 0;
     uint32_t cm = CONFIG_SERIAL_BAUD_U2X ? 8 : 16;
     UBRRx = DIV_ROUND_CLOSEST(CONFIG_CLOCK_FREQ, cm * CONFIG_SERIAL_BAUD) - 1UL;

@@ -4,12 +4,10 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "avr.h" // crc16_ccitt
+#include "generic_crc16_ccitt.h"
 
 // Implement the standard crc "ccitt" algorithm on the given buffer
-uint16_t
-crc16_ccitt(uint8_t *buf, uint_fast8_t len)
-{
+uint16_t crc16_ccitt(uint8_t *buf, uint_fast8_t len) {
     uint16_t crc = 0xffff;
     while (len--) {
         uint8_t data = *buf++;
@@ -20,3 +18,4 @@ crc16_ccitt(uint8_t *buf, uint_fast8_t len)
     }
     return crc;
 }
+

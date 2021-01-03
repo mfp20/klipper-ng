@@ -1,16 +1,16 @@
-#ifndef __GPIOCMDS_H
-#define __GPIOCMDS_H
+#ifndef __CMDS_GPIO_H
+#define __CMDS_GPIO_H
 
 #include <stdint.h> // uint32_t
 
-void digital_out_shutdown(void);
-void soft_pwm_shutdown(void);
+#include "platform.h"
+
+void task_end_digital_out(void);
 
 void command_config_digital_out(uint32_t*);
 void command_schedule_digital_out(uint32_t*);
 void command_update_digital_out(uint32_t*);
 void command_set_digital_out(uint32_t*);
-void command_config_soft_pwm_out(uint32_t*);
-void command_schedule_soft_pwm_out(uint32_t*);
 
-#endif // gpiocmds.h
+#endif // cmds_gpio.h
+

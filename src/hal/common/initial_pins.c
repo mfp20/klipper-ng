@@ -6,17 +6,14 @@
 
 #include "initial_pins.h" // initial_pins
 
-#include "autoconf.h" // CONFIG_INITIAL_PINS
 #include "sched.h" //
-
-#include "gpio.h" // gpio_out_setup
-#include "pgm.h" // READP
 
 const struct initial_pin_s initial_pins[] PROGMEM = {
 };
+
 const int initial_pins_size PROGMEM = ARRAY_SIZE(initial_pins);
 
-void initial_pins_setup(void) {
+void task_init_initial_pins(void) {
     int i;
     for (i=0; i<initial_pins_size; i++) {
         const struct initial_pin_s *ip = &initial_pins[i];

@@ -11,9 +11,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "gpio.h" // struct gpio_pwm
-#include "internal.h" // NSECS_PER_TICK
-#include "cmd.h" // shutdown
+#include "pwm.h" // struct gpio_pwm
+#include "timer.h" // NSECS_PER_TICK
+//#include "command.h" // shutdown
 #include "sched.h" // sched_shutdown
 
 #define MAX_PWM (1 << 15)
@@ -23,11 +23,9 @@
 #define HARD_PWM_TO_CHIP(hard_pwm) (((hard_pwm) - HARD_PWM_START) >> 8)
 #define HARD_PWM_TO_PIN(hard_pwm)  (((hard_pwm) - HARD_PWM_START) & 0xff)
 
-
 #define PWM_PATH "/sys/class/pwm/pwmchip%u/pwm%u/%s"
 
-struct gpio_pwm gpio_pwm_setup(uint8_t pin, uint32_t cycle_time, uint16_t val)
-{
+struct gpio_pwm gpio_pwm_setup(uint8_t pin, uint32_t cycle_time, uint16_t val) {
     char filename[256];
     char scratch[16];
     uint8_t chip_id = HARD_PWM_TO_CHIP(pin);
@@ -79,8 +77,7 @@ fail:
 }
 
 
-void gpio_pwm_write(struct gpio_pwm g, uint16_t val)
-{
+void gpio_pwm_write(struct gpio_pwm g, uint16_t val) {
     char scratch[16];
     uint32_t duty_cycle = g.period * (uint64_t)val / MAX_PWM;
     snprintf(scratch, sizeof(scratch), "%u", duty_cycle);

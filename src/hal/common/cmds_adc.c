@@ -4,15 +4,13 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "sched.h" //
-#include "cmd.h" //
+#include "cmds_adc.h"
+
+#include "sched.h" // struct timer_s
 #include "cmds_base.h" // oid_alloc
 
-#include "gpio.h" // struct gpio_adc
-#include "irq.h" // irq_disable
-
 struct analog_in {
-    struct timer timer;
+    struct timer_s timer;
     uint32_t rest_time, sample_time, next_begin_time;
     uint16_t value, min_value, max_value;
     struct gpio_adc pin;
@@ -22,7 +20,7 @@ struct analog_in {
 
 static struct task_wake analog_wake;
 
-static uint_fast8_t analog_in_event(struct timer *timer) {
+static uint_fast8_t analog_in_event(struct timer_s *timer) {
     struct analog_in *a = container_of(timer, struct analog_in, timer);
     uint32_t sample_delay = gpio_adc_sample(a->pin);
     if (sample_delay) {
@@ -57,10 +55,49 @@ static uint_fast8_t analog_in_event(struct timer *timer) {
     return SF_RESCHEDULE;
 }
 
+
+/****************************************************************
+ * tasks and commands
+ ****************************************************************/
+
+void task_analog_in(void) {
+    if (!sched_check_wake(&analog_wake))
+        return;
+    uint8_t oid;
+    struct analog_in *a;
+    foreach_oid(oid, a, command_config_analog_in) {
+        if (a->state != a->sample_count)
+            continue;
+        irq_disable();
+        if (a->state != a->sample_count) {
+            irq_enable();
+            continue;
+        }
+        uint16_t value = a->value;
+        uint32_t next_begin_time = a->next_begin_time;
+        a->state++;
+        irq_enable();
+        send_response(TYPE_ADC_STATE, oid, next_begin_time, value);
+    }
+}
+
+void task_end_analog_in(void) {
+    uint8_t i;
+    struct analog_in *a;
+    foreach_oid(i, a, command_config_analog_in) {
+        gpio_adc_cancel_sample(a->pin);
+        if (a->sample_count) {
+            a->state = a->sample_count + 1;
+            a->next_begin_time += a->rest_time;
+            a->timer.waketime = a->next_begin_time;
+            sched_add_timer(&a->timer);
+        }
+    }
+}
+
 void command_config_analog_in(uint32_t *args) {
     struct gpio_adc pin = gpio_adc_setup(args[1]);
-    struct analog_in *a = oid_alloc(
-        args[0], command_config_analog_in, sizeof(*a));
+    struct analog_in *a = oid_alloc(args[0], command_config_analog_in, sizeof(*a));
     a->timer.func = analog_in_event;
     a->pin = pin;
     a->state = 1;
@@ -82,40 +119,5 @@ void command_query_analog_in(uint32_t *args) {
     if (! a->sample_count)
         return;
     sched_add_timer(&a->timer);
-}
-
-void analog_in_task(void) {
-    if (!sched_check_wake(&analog_wake))
-        return;
-    uint8_t oid;
-    struct analog_in *a;
-    foreach_oid(oid, a, command_config_analog_in) {
-        if (a->state != a->sample_count)
-            continue;
-        irq_disable();
-        if (a->state != a->sample_count) {
-            irq_enable();
-            continue;
-        }
-        uint16_t value = a->value;
-        uint32_t next_begin_time = a->next_begin_time;
-        a->state++;
-        irq_enable();
-        send_response(TYPE_ADC_STATE, oid, next_begin_time, value);
-    }
-}
-
-void analog_in_shutdown(void) {
-    uint8_t i;
-    struct analog_in *a;
-    foreach_oid(i, a, command_config_analog_in) {
-        gpio_adc_cancel_sample(a->pin);
-        if (a->sample_count) {
-            a->state = a->sample_count + 1;
-            a->next_begin_time += a->rest_time;
-            a->timer.waketime = a->next_begin_time;
-            sched_add_timer(&a->timer);
-        }
-    }
 }
 

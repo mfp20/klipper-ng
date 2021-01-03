@@ -8,11 +8,11 @@
 #include <stdio.h> // snprintf
 #include <sys/ioctl.h> // ioctl
 #include <unistd.h> // write
-#include "gpio.h" // i2c_setup
-#include "cmd.h" // shutdown
-#include "internal.h" // report_errno
-#include "sched.h" // sched_shutdown
 
+#include "i2c.h" // i2c_setup
+//#include "command.h" // shutdown
+#include "console.h" // report_errno
+#include "sched.h" // sched_shutdown
 
 struct i2c_s {
     uint32_t bus;
@@ -23,9 +23,7 @@ struct i2c_s {
 static struct i2c_s devices[16];
 static int devices_count;
 
-static int
-i2c_open(uint32_t bus, uint8_t addr)
-{
+static int i2c_open(uint32_t bus, uint8_t addr) {
     // Find existing device (if already opened)
     int i;
     for (i=0; i<devices_count; i++) {
@@ -60,12 +58,10 @@ i2c_open(uint32_t bus, uint8_t addr)
 fail:
     if (fd >= 0)
         close(fd);
-    sched_shutdown("Unable to open i2c device");
+    sched_shutdown(ERROR_I2C_OPEN_UNAVAIL);
 }
 
-struct i2c_config
-i2c_setup(uint32_t bus, uint32_t rate, uint8_t addr)
-{
+struct i2c_config i2c_setup(uint32_t bus, uint32_t rate, uint8_t addr) {
     // Note:  The rate is set by the kernel driver, for a Raspberry Pi this
     // is done with the following setting in /boot/config.txt:
     //
@@ -75,26 +71,22 @@ i2c_setup(uint32_t bus, uint32_t rate, uint8_t addr)
     return (struct i2c_config){.fd=fd};
 }
 
-void
-i2c_write(struct i2c_config config, uint8_t write_len, uint8_t *data)
-{
+void i2c_write(struct i2c_config config, uint8_t write_len, uint8_t *data) {
     int ret = write(config.fd, data, write_len);
     if (ret != write_len) {
         if (ret < 0)
             report_errno("write value i2c", ret);
-        sched_try_shutdown("Unable write i2c device");
+        sched_try_shutdown(ERROR_I2C_WRITE_UNAVAIL);
     }
 }
 
-void
-i2c_read(struct i2c_config config, uint8_t reg_len, uint8_t *reg
-         , uint8_t read_len, uint8_t *data)
-{
+void i2c_read(struct i2c_config config, uint8_t reg_len, uint8_t *reg, uint8_t read_len, uint8_t *data) {
     i2c_write(config, reg_len, reg);
     int ret = read(config.fd, data, read_len);
     if (ret != read_len) {
         if (ret < 0)
             report_errno("read value i2c", ret);
-        sched_try_shutdown("Unable to read i2c device");
+        sched_try_shutdown(ERROR_I2C_READ_UNAVAIL);
     }
 }
+

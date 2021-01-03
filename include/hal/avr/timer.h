@@ -3,16 +3,14 @@
 
 #include <stdint.h> // uint8_t
 
-#include "macro_compiler.h"
-
 union u32_u {
     struct { uint8_t b0, b1, b2, b3; };
     struct { uint16_t lo, hi; };
     uint32_t val;
 };
 
-void timer_init(void);
-void timer_reset(void);
+void task_init_timer(void);
+void task_end_timer(void);
 uint32_t timer_from_us(uint32_t us);
 
 // Return true if time1 is before time2.  Always use this function to
@@ -36,3 +34,4 @@ uint32_t timer_read_time(void);
 void timer_kick(void);
 
 #endif // timer.h
+

@@ -1,6 +1,6 @@
 #ifndef __AVR_SERIAL_H
 #define __AVR_SERIAL_H
 
-void serial_init(void);
+void task_init_serial(void);
 
 #endif // serial.h

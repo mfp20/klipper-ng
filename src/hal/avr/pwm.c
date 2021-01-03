@@ -4,13 +4,15 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "autoconf.h" // CONFIG_MACH_atmega644p
+#include "autoconf.avr.h" // CONFIG_MACH_atmega644p
+
 #include "cmd.h" // shutdown
-#include "gpio.h" // gpio_pwm_write
+#include "sched.h" // sched_shutdown
+
 #include "internal.h" // GPIO2REGS
 #include "irq.h" // irq_save
+#include "pwm.h" // gpio_pwm_write
 #include "pgm.h" // PROGMEM
-#include "sched.h" // sched_shutdown
 
 struct gpio_pwm_info {
     uint8_t pin;
@@ -75,9 +77,7 @@ static const struct gpio_pwm_info pwm_regs[] PROGMEM = {
 };
 
 
-struct gpio_pwm
-gpio_pwm_setup(uint8_t pin, uint32_t cycle_time, uint8_t val)
-{
+struct gpio_pwm gpio_pwm_setup(uint8_t pin, uint32_t cycle_time, uint8_t val) {
     // Find pin in pwm_regs table
     const struct gpio_pwm_info *p = pwm_regs;
     for (; ; p++) {
@@ -133,9 +133,7 @@ gpio_pwm_setup(uint8_t pin, uint32_t cycle_time, uint8_t val)
     return g;
 }
 
-void
-gpio_pwm_write(struct gpio_pwm g, uint8_t val)
-{
+void gpio_pwm_write(struct gpio_pwm g, uint8_t val) {
     if (g.size8) {
         *(volatile uint8_t*)g.reg = val;
     } else {
@@ -144,3 +142,4 @@ gpio_pwm_write(struct gpio_pwm g, uint8_t val)
         irq_restore(flag);
     }
 }
+

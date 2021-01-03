@@ -14,6 +14,6 @@ enum { IP_OUT_HIGH = 1 };
 extern const struct initial_pin_s initial_pins[];
 extern const int initial_pins_size;
 
-void initial_pins_setup(void);
+void task_init_initial_pins(void);
 
 #endif // initial_pins.h

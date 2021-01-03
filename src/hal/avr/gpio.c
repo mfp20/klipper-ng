@@ -4,7 +4,7 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "autoconf.h" // CONFIG_MACH_atmega644p
+#include "autoconf.avr.h" // CONFIG_MACH_atmega644p
 #include "cmd.h" // shutdown
 #include "gpio.h" // gpio_out_write
 #include "internal.h" // GPIO2REGS
