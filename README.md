@@ -1,5 +1,4 @@
 # klipper-ng
-### Klipper Next Gen, a general purpose Firmata-based MCU firmware and its 3D printer host application.
 
 ## WARNING: not working (yet).
 
